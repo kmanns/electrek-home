@@ -1,5 +1,6 @@
 footer {
-    background-color: var(--color-neutral-100);
+    background-color: var(--color-blue-primary);
+    color: var(--color-white);
     font: var(--type-body-2-default-font);
     letter-spacing: var(--type-body-2-default-letter-spacing);
 }
@@ -64,6 +65,72 @@ footer .footer p {
     display: block;
     list-style-type: none;
     margin-bottom: var(--spacing-small);
+}
+
+/* Lowe's-style footer structure — see DESIGN.md "Footer".
+   Authors structure /footer content as:
+   1st block  = utility icon row (ul of links)
+   2nd..Nth   = link columns (h6 heading + ul of links)
+   last block = legal/copyright bar */
+footer .footer a {
+    color: var(--color-white);
+    font: var(--type-body-2-default-font);
+    letter-spacing: var(--type-body-2-default-letter-spacing);
+}
+
+footer .footer a:hover {
+    color: var(--color-white);
+    text-decoration: underline;
+}
+
+footer .footer > div > div:first-child ul {
+    list-style: none;
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--spacing-medium) var(--spacing-big);
+    margin: 0 0 var(--spacing-xbig);
+    padding: 0 0 var(--spacing-medium);
+    border-bottom: var(--shape-border-width-1) solid var(--color-blue-primary-hover);
+    font: var(--type-body-1-strong-font);
+    letter-spacing: var(--type-body-1-strong-letter-spacing);
+}
+
+footer .footer > div > div:last-child {
+    border-top: var(--shape-border-width-1) solid var(--color-blue-primary-hover);
+    padding-top: var(--spacing-medium);
+    text-align: center;
+    color: var(--color-grey-500);
+    font: var(--type-details-caption-1-font);
+    letter-spacing: var(--type-details-caption-1-letter-spacing);
+}
+
+footer .footer > div > div:not(:first-child, :last-child) {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: var(--spacing-big) var(--spacing-medium);
+    margin-bottom: var(--spacing-xbig);
+}
+
+footer .footer > div > div:not(:first-child, :last-child) h6 {
+    font: var(--type-body-1-strong-font);
+    letter-spacing: var(--type-body-1-strong-letter-spacing);
+    margin: 0 0 var(--spacing-small);
+    color: var(--color-white);
+}
+
+footer .footer > div > div:not(:first-child, :last-child) ul {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-xsmall);
+}
+
+@media (min-width: 600px) {
+    footer .footer > div > div:not(:first-child, :last-child) {
+        grid-template-columns: repeat(4, 1fr);
+    }
 }
 
 @media (min-width: 900px) {

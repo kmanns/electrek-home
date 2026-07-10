@@ -5,20 +5,30 @@
 
 .hero {
   position: relative;
+  display: flex;
+  align-items: center;
   padding: 40px 24px;
-  min-height: 300px;
+  min-height: 320px;
+}
+
+.hero::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: linear-gradient(90deg, rgb(0 20 51 / 70%), rgb(0 20 51 / 20%));
 }
 
 .hero h1 {
   max-width: 1200px;
-  margin-left: auto;
-  margin-right: auto;
-  color: var(--background-color);
+  margin: 0 auto;
+  color: var(--color-white);
+  text-shadow: 0 1px 4px rgb(0 0 0 / 30%);
 }
 
 .hero picture {
   position: absolute;
-  z-index: -1;
+  z-index: -2;
   inset: 0;
   object-fit: cover;
   box-sizing: border-box;
@@ -30,8 +40,19 @@
   height: 100%;
 }
 
+.hero .button-container {
+  max-width: 1200px;
+  margin: var(--spacing-small) auto 0;
+}
+
+.hero a.button {
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
 @media (min-width: 900px) {
   .hero {
+    min-height: 420px;
     padding: 40px 32px;
   }
 }

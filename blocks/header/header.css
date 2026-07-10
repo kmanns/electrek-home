@@ -12,7 +12,7 @@ header .nav-wrapper {
   width: 100%;
   z-index: 3;
   position: fixed;
-  border-bottom: 1px solid var(--color-neutral-300);
+  border-bottom: var(--shape-border-width-1) solid var(--color-grey-300);
 }
 
 header nav {
@@ -40,19 +40,38 @@ header nav[aria-expanded='true'] {
 @media (min-width: 900px) {
   header .nav-wrapper {
     position: relative;
+    background-color: var(--color-white);
   }
 
-  header nav {
-    display: flex;
-    justify-content: space-between;
-    gap: 0 32px;
-    max-width: 1264px;
-    padding: 0 32px;
-  }
-
+  header nav,
   header nav[aria-expanded='true'] {
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    grid-template-areas:
+      'brand tools tools'
+      'sections sections sections';
+    align-items: center;
+    gap: var(--spacing-xsmall) 32px;
+    max-width: 1264px;
+    height: auto;
     min-height: 0;
     overflow: visible;
+    padding: var(--spacing-small) 32px var(--spacing-xsmall);
+  }
+
+  header nav .nav-brand {
+    grid-area: brand;
+  }
+
+  header nav .nav-tools {
+    grid-area: tools;
+    justify-content: flex-end;
+  }
+
+  header nav .nav-sections {
+    grid-area: sections;
+    border-top: var(--shape-border-width-1) solid var(--color-grey-300);
+    padding-top: var(--spacing-xsmall);
   }
 }
 
@@ -197,6 +216,45 @@ header nav .nav-sections ul>li>a {
 
 header nav .nav-brand a:hover {
   text-decoration: none;
+}
+
+/* utility bar — thin strip above the primary nav row (see DESIGN.md "Header / Navigation") */
+/* stylelint-disable-next-line no-descending-specificity */
+header .nav-utility {
+  background-color: var(--color-blue-primary);
+  color: var(--color-white);
+}
+
+/* stylelint-disable-next-line no-descending-specificity */
+header .nav-utility ul {
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--spacing-small) var(--spacing-medium);
+  margin: 0 auto;
+  max-width: 1264px;
+  padding: var(--spacing-xxsmall) var(--spacing-small);
+  font: var(--type-details-caption-1-font);
+  letter-spacing: var(--type-details-caption-1-letter-spacing);
+}
+
+/* stylelint-disable-next-line no-descending-specificity */
+header .nav-utility a {
+  color: var(--color-white);
+  font: var(--type-details-caption-1-font);
+  letter-spacing: var(--type-details-caption-1-letter-spacing);
+}
+
+/* stylelint-disable-next-line no-descending-specificity */
+header .nav-utility a:hover {
+  text-decoration: underline;
+}
+
+@media (min-width: 900px) {
+  header .nav-utility ul {
+    padding: var(--spacing-xxsmall) var(--spacing-big);
+  }
 }
 
 header nav .nav-sections ul>li ul {
@@ -479,7 +537,7 @@ header .nav-search-input .search_autocomplete .popover-container {
 }
 
 #auth-combine-wrapper {
-  background-color: white;
+  background-color: var(--color-white);
   border-radius: var(--shape-border-radius-2);
   width: 100%;
   max-width: 800px;
@@ -545,7 +603,7 @@ header .nav-search-input .search_autocomplete .popover-container {
 
 .dropdown-wrapper.nav-tools-wrapper .nav-auth-menu-panel .authenticated-user-menu li>a:hover,
 .dropdown-wrapper.nav-tools-wrapper .nav-auth-menu-panel .authenticated-user-menu li>.logoutButton:hover {
-  background-color: lightgray;
+  background-color: var(--color-grey-100);
 }
 
 .dropdown-wrapper.nav-tools-wrapper .nav-auth-menu-panel .authenticated-user-menu li button {
@@ -566,7 +624,7 @@ header .nav-search-input .search_autocomplete .popover-container {
 }
 
 .dropdown-wrapper.nav-tools-wrapper .nav-auth-menu-panel .authenticated-user-menu li button:hover {
-  background-color: lightgray !important;
+  background-color: var(--color-grey-100) !important;
   border-radius: 0 !important;
 }
 
@@ -754,8 +812,8 @@ header .nav-search-input .search_autocomplete .popover-container {
 }
 
 .product-discovery--search-bar-results__outer-container .product-discovery--search-bar-results__grid {
-  box-shadow: 2px 2px 2px lightgray;
-  border: 1px solid lightgray;
+  box-shadow: var(--shape-shadow-3);
+  border: var(--shape-border-width-1) solid var(--color-grey-300);
 }
 
 .product-discovery--product-item {

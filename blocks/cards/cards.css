@@ -12,16 +12,24 @@
 }
 
 .cards > ul > li {
-  border: var(--shape-border-width-1) solid var(--color-neutral-500);
-  background-color: var(--background-color);
+  border: var(--shape-border-width-1) solid var(--color-grey-300);
+  background-color: var(--color-white);
+  display: flex;
+  flex-direction: column;
 }
 
 .cards .cards-card-body {
   margin: var(--spacing-small);
+  color: var(--color-text);
+}
+
+.cards .cards-card-body p:first-child {
+  margin-top: 0;
 }
 
 .cards .cards-card-image {
   line-height: 0;
+  position: relative;
 }
 
 .cards > ul > li img {

@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="stylesheet" href="/styles/styles.css" />
+  <script nonce="aem" type="importmap">
+    {
+      "imports": {
+        "@dropins/storefront-account/": "/scripts/__dropins__/storefront-account/",
+        "@dropins/storefront-auth/": "/scripts/__dropins__/storefront-auth/",
+        "@dropins/storefront-cart/": "/scripts/__dropins__/storefront-cart/",
+        "@dropins/storefront-checkout/": "/scripts/__dropins__/storefront-checkout/",
+        "@dropins/storefront-order/": "/scripts/__dropins__/storefront-order/",
+        "@dropins/storefront-payment-services/": "/scripts/__dropins__/storefront-payment-services/",
+        "@dropins/storefront-pdp/": "/scripts/__dropins__/storefront-pdp/",
+        "@dropins/storefront-recommendations/": "/scripts/__dropins__/storefront-recommendations/",
+        "@dropins/storefront-wishlist/": "/scripts/__dropins__/storefront-wishlist/",
+        "@dropins/storefront-personalization/": "/scripts/__dropins__/storefront-personalization/",
+        "@dropins/storefront-product-discovery/": "/scripts/__dropins__/storefront-product-discovery/",
+        "@dropins/storefront-quote-management/": "/scripts/__dropins__/storefront-quote-management/",
+        "@dropins/storefront-company-switcher/": "/scripts/__dropins__/storefront-company-switcher/",
+        "@dropins/storefront-company-management/": "/scripts/__dropins__/storefront-company-management/",
+        "@dropins/storefront-requisition-list/": "/scripts/__dropins__/storefront-requisition-list/",
+        "@dropins/storefront-purchase-order/": "/scripts/__dropins__/storefront-purchase-order/",
+        "@dropins/storefront-quick-order/": "/scripts/__dropins__/storefront-quick-order/",
+        "@dropins/tools/": "/scripts/__dropins__/tools/"
+      }
+    }
+  </script>
+  <script nonce="aem" type="module">
+    if (!(HTMLScriptElement.supports?.('importmap'))) {
+      import('/scripts/__dropins__/tools/shims/importmap.js');
+    }
+  </script>
+  <script nonce="aem" src="/scripts/aem.js" type="module"></script>
+  <script nonce="aem" src="/scripts/scripts.js" type="module"></script>
+  <script nonce="aem" src="/scripts/commerce.js" type="module"></script>
+</head>
+<body>
+<header></header>
+<main>
+<div>
+  <div class="carousel">
+    <div>
+      <div><picture><img src="https://images.unsplash.com/photo-1581092160607-ee22621dd758?w=1600" alt="Electrical contractor working on panel"></picture></div>
+      <div data-align="left">
+        <p class="eyebrow">Contract Catalog</p>
+        <h1>Save Big. Order Big.</h1>
+        <p><strong><a href="/catalog">Shop Contract Catalog</a></strong></p>
+      </div>
+    </div>
+    <div>
+      <div><picture><img src="https://images.unsplash.com/photo-1621905251189-08b45d6a269e?w=1600" alt="Warehouse shelves of electrical supplies"></picture></div>
+      <div data-align="left">
+        <p class="eyebrow">Bulk Ordering</p>
+        <h1>Reorder in Seconds</h1>
+        <p><strong><a href="/reorder">Start a Reorder</a></strong></p>
+      </div>
+    </div>
+  </div>
+</div>
+<div>
+  <div class="announcement-strip">
+    <div>
+      <div><picture><img src="/icons/cart.svg" alt=""></picture></div>
+      <div><p><strong>Free freight</strong> on orders over $500 for contract accounts. <a href="/shipping">Learn more</a></p></div>
+    </div>
+  </div>
+</div>
+<div>
+  <div class="promo-tiles">
+    <div>
+      <div><picture><img src="https://images.unsplash.com/photo-1621905252507-b35492cc74b4?w=800" alt="Wire and cable"></picture></div>
+      <div><h3>Wire &amp; Cable</h3><p><a href="/electrical/wire">Shop Now</a></p></div>
+    </div>
+    <div>
+      <div><picture><img src="https://images.unsplash.com/photo-1558617320-231b73fbe270?w=800" alt="Panels and breakers"></picture></div>
+      <div><h3>Panels &amp; Breakers</h3><p><a href="/electrical/panels">Shop Now</a></p></div>
+    </div>
+    <div>
+      <div><picture><img src="https://images.unsplash.com/photo-1504328345606-18bbc8c9d7d1?w=800" alt="Lighting"></picture></div>
+      <div><h3>Lighting</h3><p><a href="/electrical/lighting">Shop Now</a></p></div>
+    </div>
+    <div>
+      <div><picture><img src="https://images.unsplash.com/photo-1580901369456-020184e3f2d3?w=800" alt="Power tools"></picture></div>
+      <div><h3>Power Tools</h3><p><a href="/tools/power">Shop Now</a></p></div>
+    </div>
+    <div>
+      <div><picture><img src="https://images.unsplash.com/photo-1572981779307-38b8cabb2407?w=800" alt="Hand tools"></picture></div>
+      <div><h3>Hand Tools</h3><p><a href="/tools/hand">Shop Now</a></p></div>
+    </div>
+  </div>
+</div>
+<div>
+  <h2>Recommended for Your Account</h2>
+  <div class="cards">
+    <div>
+      <div><picture><img src="https://images.unsplash.com/photo-1620825141122-9a4b0d5f0e5a?w=800" alt="12/2 Romex wire"></picture></div>
+      <div>
+        <span class="badge badge-blue">Contract Item</span>
+        <h3>12/2 Romex Wire, 250ft</h3>
+        <p>SKU: 48213-250</p>
+        <p><s>$189.99</s> <strong>$149.99</strong> / roll</p>
+        <p><span class="badge badge-grey">In Stock</span></p>
+        <p><a class="button primary" href="/product/48213-250">Add to Order</a></p>
+      </div>
+    </div>
+    <div>
+      <div><picture><img src="https://images.unsplash.com/photo-1621905252195-0459f6b4bf6f?w=800" alt="200A breaker panel"></picture></div>
+      <div>
+        <span class="badge badge-error-outline">Save 10%</span>
+        <h3>200A Main Breaker Panel</h3>
+        <p>SKU: 77102-200</p>
+        <p><strong>$412.00</strong> / unit</p>
+        <p><span class="badge badge-grey">In Stock</span></p>
+        <p><a class="button primary" href="/product/77102-200">Add to Order</a></p>
+      </div>
+    </div>
+    <div>
+      <div><picture><img src="https://images.unsplash.com/photo-1581092918484-8313ade5aa46?w=800" alt="LED shop light fixture"></picture></div>
+      <div>
+        <h3>LED Shop Light Fixture, 4ft</h3>
+        <p>SKU: 90341-4</p>
+        <p><strong>$38.50</strong> / unit</p>
+        <p><span class="badge badge-grey">Sign in for pricing</span></p>
+        <p><a class="button secondary" href="/product/90341-4">Request Quote</a></p>
+      </div>
+    </div>
+  </div>
+</div>
+</main>
+<footer></footer>
+</body>
+</html>

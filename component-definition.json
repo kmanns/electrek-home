@@ -262,6 +262,68 @@
           }
         },
         {
+          "title": "Promo Tiles",
+          "id": "promo-tiles",
+          "model": "promo-tiles",
+          "filter": "promo-tiles",
+          "plugins": {
+            "da": {
+              "rows": 1,
+              "columns": 2
+            }
+          }
+        },
+        {
+          "title": "Promo Tile",
+          "id": "promo-tile",
+          "model": "promo-tile",
+          "plugins": {
+            "da": {
+              "rows": 1,
+              "columns": 2,
+              "fields": [
+                {
+                  "name": "image",
+                  "selector": "div:nth-child(1)>picture>img[src]"
+                },
+                {
+                  "name": "imageAlt",
+                  "selector": "div:nth-child(1)>picture>img[alt]"
+                },
+                {
+                  "name": "text",
+                  "selector": "div:nth-child(2)"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "title": "Announcement Strip",
+          "id": "announcement-strip",
+          "model": "announcement-strip",
+          "plugins": {
+            "da": {
+              "rows": 1,
+              "columns": 2,
+              "fields": [
+                {
+                  "name": "icon",
+                  "selector": "div:nth-child(1)>picture>img[src]"
+                },
+                {
+                  "name": "iconAlt",
+                  "selector": "div:nth-child(1)>picture>img[alt]"
+                },
+                {
+                  "name": "text",
+                  "selector": "div:nth-child(2)"
+                }
+              ]
+            }
+          }
+        },
+        {
           "title": "Targeted Block",
           "id": "targeted-block",
           "model": "targeted-block",

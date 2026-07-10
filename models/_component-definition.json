@@ -48,6 +48,12 @@
           "...": "../blocks/hero/_*.json#/definitions"
         },
         {
+          "...": "../blocks/promo-tiles/_*.json#/definitions"
+        },
+        {
+          "...": "../blocks/announcement-strip/_*.json#/definitions"
+        },
+        {
           "...": "../blocks/targeted-block/_*.json#/definitions"
         },
         {

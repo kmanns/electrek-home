@@ -181,11 +181,20 @@ export default async function decorate(block) {
   nav.id = 'nav';
   while (fragment.firstElementChild) nav.append(fragment.firstElementChild);
 
-  const classes = ['brand', 'sections', 'tools'];
+  // Authors may optionally prepend a 4th block (before brand/sections/tools) that renders
+  // as a full-width utility bar above the primary nav row — see DESIGN.md "Header / Navigation".
+  // Existing 3-block nav content (brand/sections/tools) continues to work unchanged.
+  const hasUtilityBlock = nav.children.length > 3;
+  const classes = hasUtilityBlock
+    ? ['utility', 'brand', 'sections', 'tools']
+    : ['brand', 'sections', 'tools'];
   classes.forEach((c, i) => {
     const section = nav.children[i];
     if (section) section.classList.add(`nav-${c}`);
   });
+
+  const navUtility = nav.querySelector('.nav-utility');
+  if (navUtility) navUtility.remove();
 
   const navBrand = nav.querySelector('.nav-brand');
   const brandLink = navBrand.querySelector('.button');
@@ -503,6 +512,7 @@ export default async function decorate(block) {
 
   const navWrapper = document.createElement('div');
   navWrapper.className = 'nav-wrapper';
+  if (navUtility) navWrapper.append(navUtility);
   navWrapper.append(nav);
   block.append(navWrapper);
 

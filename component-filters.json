@@ -81,5 +81,11 @@
       "text",
       "image"
     ]
+  },
+  {
+    "id": "promo-tiles",
+    "components": [
+      "promo-tile"
+    ]
   }
 ]

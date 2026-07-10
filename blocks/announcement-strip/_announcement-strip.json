@@ -1,0 +1,48 @@
+{
+  "definitions": [
+    {
+      "title": "Announcement Strip",
+      "id": "announcement-strip",
+      "model": "announcement-strip",
+      "plugins": {
+        "da": {
+          "rows": 1,
+          "columns": 2,
+          "fields": [
+            { "name": "icon", "selector": "div:nth-child(1)>picture>img[src]" },
+            { "name": "iconAlt", "selector": "div:nth-child(1)>picture>img[alt]" },
+            { "name": "text", "selector": "div:nth-child(2)" }
+          ]
+        }
+      }
+    }
+  ],
+  "models": [
+    {
+      "id": "announcement-strip",
+      "fields": [
+        {
+          "component": "reference",
+          "valueType": "string",
+          "name": "icon",
+          "label": "Icon (optional)",
+          "multi": false
+        },
+        {
+          "component": "text",
+          "valueType": "string",
+          "name": "iconAlt",
+          "label": "Icon Alt"
+        },
+        {
+          "component": "richtext",
+          "name": "text",
+          "value": "",
+          "label": "Statement + Link",
+          "valueType": "string"
+        }
+      ]
+    }
+  ],
+  "filters": []
+}
