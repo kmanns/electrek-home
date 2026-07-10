@@ -1,0 +1,18 @@
+{
+  "mcpServers": {
+    "commerce-extensibility": {
+      "command": "node",
+      "args": [
+        "node_modules/@adobe-commerce/commerce-extensibility-tools/index.js"
+      ],
+      "env": {}
+    },
+    "dropins": {
+      "command": "npx",
+      "args": [
+        "--yes",
+        "@dropins/mcp"
+      ]
+    }
+  }
+}
