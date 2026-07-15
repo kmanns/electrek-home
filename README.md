@@ -2,6 +2,11 @@
 
 This project boilerplate is for Edge Delivery Services projects that integrate with Adobe Commerce.
 
+## Environments
+
+- Preview: <https://main--geck--kmanns.aem.page/>
+- Live: <https://main--geck--kmanns.aem.live/>
+
 ## Documentation
 
 Before using the boilerplate, we recommend you to go through the documentation on <https://experienceleague.adobe.com/developer/commerce/storefront/> and more specifically:
