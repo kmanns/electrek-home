@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="stylesheet" href="/styles/styles.css" />
+  <script nonce="aem" type="importmap">
+    {
+      "imports": {
+        "@dropins/storefront-account/": "/scripts/__dropins__/storefront-account/",
+        "@dropins/storefront-auth/": "/scripts/__dropins__/storefront-auth/",
+        "@dropins/storefront-cart/": "/scripts/__dropins__/storefront-cart/",
+        "@dropins/storefront-checkout/": "/scripts/__dropins__/storefront-checkout/",
+        "@dropins/storefront-order/": "/scripts/__dropins__/storefront-order/",
+        "@dropins/storefront-payment-services/": "/scripts/__dropins__/storefront-payment-services/",
+        "@dropins/storefront-pdp/": "/scripts/__dropins__/storefront-pdp/",
+        "@dropins/storefront-recommendations/": "/scripts/__dropins__/storefront-recommendations/",
+        "@dropins/storefront-wishlist/": "/scripts/__dropins__/storefront-wishlist/",
+        "@dropins/storefront-personalization/": "/scripts/__dropins__/storefront-personalization/",
+        "@dropins/storefront-product-discovery/": "/scripts/__dropins__/storefront-product-discovery/",
+        "@dropins/storefront-quote-management/": "/scripts/__dropins__/storefront-quote-management/",
+        "@dropins/storefront-company-switcher/": "/scripts/__dropins__/storefront-company-switcher/",
+        "@dropins/storefront-company-management/": "/scripts/__dropins__/storefront-company-management/",
+        "@dropins/storefront-requisition-list/": "/scripts/__dropins__/storefront-requisition-list/",
+        "@dropins/storefront-purchase-order/": "/scripts/__dropins__/storefront-purchase-order/",
+        "@dropins/storefront-quick-order/": "/scripts/__dropins__/storefront-quick-order/",
+        "@dropins/tools/": "/scripts/__dropins__/tools/"
+      }
+    }
+  </script>
+  <script nonce="aem" type="module">
+    if (!(HTMLScriptElement.supports?.('importmap'))) {
+      import('/scripts/__dropins__/tools/shims/importmap.js');
+    }
+  </script>
+  <script nonce="aem" src="/scripts/aem.js" type="module"></script>
+  <script nonce="aem" src="/scripts/scripts.js" type="module"></script>
+  <script nonce="aem" src="/scripts/commerce.js" type="module"></script>
+</head>
+<body>
+<header></header>
+<main>
+
+<!-- Hero band -->
+<div>
+  <div class="hero">
+    <div>
+      <div><picture><img src="https://images.unsplash.com/photo-1504328345606-18bbc8c9d7d1?w=1600" alt="Contractor on the job site"></picture></div>
+      <div>
+        <h1>Everything the job needs. In stock, on account.</h1>
+        <p class="button-container"><a href="/apparel" class="button primary">Shop the catalog</a></p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Shop by Category -->
+<div>
+  <h2>Shop by Category</h2>
+  <div class="category-grid">
+    <div><div><picture><img src="https://picsum.photos/seed/powertools/800/450" alt="Power tools"></picture></div><div><a href="/power-tools">Power Tools</a></div></div>
+    <div><div><picture><img src="https://picsum.photos/seed/handtools/800/450" alt="Hand tools"></picture></div><div><a href="/hand-tools">Hand Tools</a></div></div>
+    <div><div><picture><img src="https://picsum.photos/seed/fasteners/800/450" alt="Hardware and fasteners"></picture></div><div><a href="/hardware">Hardware &amp; Fasteners</a></div></div>
+    <div><div><picture><img src="https://picsum.photos/seed/electrical/800/450" alt="Electrical"></picture></div><div><a href="/electrical">Electrical</a></div></div>
+    <div><div><picture><img src="https://picsum.photos/seed/plumbing/800/450" alt="Plumbing"></picture></div><div><a href="/plumbing">Plumbing</a></div></div>
+    <div><div><picture><img src="https://picsum.photos/seed/safety/800/450" alt="Safety and workwear"></picture></div><div><a href="/safety">Safety &amp; Workwear</a></div></div>
+  </div>
+</div>
+
+<!-- Featured products (real product-recommendations dropin) -->
+<div>
+  <h2>Featured Products</h2>
+  <div class="product-recommendations"></div>
+</div>
+
+<!-- B2B tools band (navy section) -->
+<div>
+  <h2>Built for how the trade buys</h2>
+  <div class="b2b-tools">
+    <div><div>quick-order</div><div><a href="/quick-order">Quick Order</a></div><div>Add products straight to cart by SKU or paste a list — no browsing required.</div></div>
+    <div><div>quote</div><div><a href="/customer/negotiable-quote">Negotiable Quotes</a></div><div>Request pricing on large orders and turn an approved quote into a cart.</div></div>
+    <div><div>list</div><div><a href="/customer/requisition-lists">Requisition Lists</a></div><div>Save the items your crews reorder and add a whole list in one action.</div></div>
+    <div><div>company</div><div><a href="/customer/company">Company Accounts</a></div><div>Manage buyers, roles, and approval rules across your organization.</div></div>
+  </div>
+</div>
+
+</main>
+<footer></footer>
+</body>
+</html>
