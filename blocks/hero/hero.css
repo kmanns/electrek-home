@@ -9,6 +9,9 @@
   align-items: center;
   padding: 40px 24px;
   min-height: 320px;
+
+  /* Solid navy base so the band reads correctly even without a hero photo */
+  background-color: var(--color-blue-primary);
 }
 
 .hero::after {
@@ -16,14 +19,31 @@
   position: absolute;
   inset: 0;
   z-index: -1;
-  background: linear-gradient(90deg, rgb(0 20 51 / 70%), rgb(0 20 51 / 20%));
+
+  /* Foundry Navy scrim (#041e42) — stronger left side for headline contrast */
+  background: linear-gradient(90deg, rgb(4 30 66 / 88%) 0%, rgb(4 30 66 / 76%) 45%, rgb(4 30 66 / 42%) 100%);
 }
 
 .hero h1 {
+  position: relative;
+  width: 100%;
   max-width: 1200px;
   margin: 0 auto;
-  color: var(--color-white);
+  color: var(--color-paper);
+  text-transform: uppercase;
+  letter-spacing: -0.01em;
   text-shadow: 0 1px 4px rgb(0 0 0 / 30%);
+}
+
+/* Reserved torch accent — graphic rule above the headline (not a text kicker) */
+.hero h1::before {
+  content: '';
+  display: block;
+  width: 56px;
+  height: 4px;
+  margin-bottom: 16px;
+  background: var(--color-accent);
+  border-radius: var(--shape-border-radius-1);
 }
 
 .hero picture {

@@ -12,17 +12,30 @@
 
 /* stylelint-disable no-empty-source */
 :root, .dropin-design {
-  /* Brand palette (see DESIGN.md) */
-  --color-blue-primary: #001e44;
-  --color-blue-primary-hover: #00295c;
-  --color-blue-dark: #001433;
-  --color-cream: #f5f1e8;
-  --color-white: #fff;
-  --color-grey-100: #f2f2f2;
-  --color-grey-300: #d9d9d9;
-  --color-grey-500: #8a8d91;
-  --color-grey-700: #4a4d52;
-  --color-text: #1b1d1f;
+  /* Brand palette — Electrek Home (see DESIGN.md, stardust target 2026-09-04) */
+
+  /* Structure — Penn State Blue (Foundry Navy) */
+  --color-blue-primary: #041e42;
+  --color-blue-primary-hover: #0a2a55;
+  --color-blue-dark: #02142f;
+  --color-navy-600: #183f73;           /* links / secondary structure */
+
+  /* Ground — cream */
+  --color-cream: #f5efe1;              /* page ground */
+  --color-cream-200: #ede6d5;          /* surface / cards on cream */
+  --color-paper: #fbf8f1;              /* cards on navy */
+  --color-white: #fff;                 /* kept for drop-in internals */
+
+  /* Warm neutral greys */
+  --color-grey-100: #ece7db;
+  --color-grey-300: #c7c2b6;           /* borders / dividers */
+  --color-grey-500: #8a867c;           /* muted (icons/placeholder glyph) */
+  --color-grey-700: #4b4a45;           /* secondary text */
+  --color-text: #16181d;               /* ink */
+
+  /* Reserved warm accent — Torch Orange (CTA / badge / active only) */
+  --color-accent: #dd5b1a;             /* badges, non-text accents, hover */
+  --color-accent-strong: #c24e12;      /* primary CTA fill (white text, AA) */
   --color-success: #2e7d32;
   --color-warning: #b25e00;
   --color-error: #b3261e;
@@ -76,9 +89,9 @@
   --grid-5-columns: 12;
   --grid-5-margins: 0;
   --grid-5-gutters: 24px;
-  --shape-border-radius-1: 3px;
-  --shape-border-radius-2: 8px;
-  --shape-border-radius-3: 24px;
+  --shape-border-radius-1: 2px;
+  --shape-border-radius-2: 4px;
+  --shape-border-radius-3: 6px;
   --shape-border-width-1: 1px;
   --shape-border-width-2: 1.5px;
   --shape-border-width-3: 2px;
@@ -103,7 +116,8 @@
   --spacing-huge: 120px;
   --spacing-xhuge: 144px;
   --spacing-xxhuge: 192px;
-  --type-base-font-family: adobe-clean, roboto, roboto-fallback, system-ui, sans-serif;
+  --type-base-font-family: barlow, roboto, roboto-fallback, system-ui, sans-serif;
+  --type-display-font-family: "barlow condensed", barlow, roboto-condensed, system-ui, sans-serif;
   --type-display-1-font: normal normal 300 6rem/7.2rem var(--type-base-font-family);
   --type-display-1-letter-spacing: 0.04em;
   --type-display-2-font: normal normal 300 4.8rem/5.6rem var(--type-base-font-family);
@@ -141,7 +155,7 @@
 
   /* Additional tokens */
   --type-fixed-font-family: adobe-clean, "Roboto Mono", menlo, consolas, "Liberation Mono", monospace, system-ui, sans-serif;
-  --background-color: var(--color-neutral-50);
+  --background-color: var(--color-cream);
   --nav-height: 6.4rem;
   --nav-utility-height: 3.6rem;
 
@@ -247,6 +261,7 @@ h6 {
 
 h1 {
   font: var(--type-display-1-font);
+  font-family: var(--type-display-font-family);
   font-size: var(--heading-h1-size);
   font-weight: 700;
   letter-spacing: var(--type-display-1-letter-spacing);
@@ -255,6 +270,7 @@ h1 {
 
 h2 {
   font: var(--type-display-2-font);
+  font-family: var(--type-display-font-family);
   font-size: var(--heading-h2-size);
   font-weight: 700;
   letter-spacing: var(--type-display-2-letter-spacing);
@@ -263,6 +279,7 @@ h2 {
 
 h3 {
   font: var(--type-display-3-font);
+  font-family: var(--type-display-font-family);
   font-size: var(--heading-h3-size);
   font-weight: 700;
   letter-spacing: var(--type-display-3-letter-spacing);
@@ -273,24 +290,29 @@ h3 {
 .eyebrow {
   display: block;
   font: var(--type-details-overline-font);
+  font-family: var(--type-display-font-family);
   letter-spacing: var(--type-details-overline-letter-spacing);
   text-transform: uppercase;
   font-weight: 700;
+  color: var(--color-accent-strong);
   margin-bottom: var(--spacing-xsmall);
 }
 
 h4 {
   font: var(--type-headline-1-font);
+  font-family: var(--type-display-font-family);
   letter-spacing: var(--type-headline-1-letter-spacing);
 }
 
 h5 {
   font: var(--type-headline-2-strong-font);
+  font-family: var(--type-display-font-family);
   letter-spacing: var(--type-headline-2-strong-letter-spacing);
 }
 
 h6 {
   font: var(--type-headline-2-default-font);
+  font-family: var(--type-display-font-family);
   letter-spacing: var(--type-headline-2-default-letter-spacing);
 }
 
@@ -377,7 +399,7 @@ button.button {
   font-weight: 500;
   line-height: 1.25;
   text-decoration: none;
-  background-color: var(--color-brand-500);
+  background-color: var(--color-accent-strong);
   color: var(--color-neutral-50);
   cursor: pointer;
   overflow: hidden;
@@ -395,7 +417,7 @@ main a.button:hover,
 main a.button:focus,
 button.button:hover,
 button.button:focus {
-  background-color: var(--color-brand-600);
+  background-color: var(--color-accent);
   cursor: pointer;
 }
 
@@ -408,8 +430,8 @@ button.button:disabled:hover {
 
 a.button.primary,
 button.button.primary {
-  border-color: var(--color-brand-500);
-  background-color: var(--color-brand-500);
+  border-color: var(--color-accent-strong);
+  background-color: var(--color-accent-strong);
   color: var(--color-neutral-50);
 }
 
@@ -417,8 +439,8 @@ a.button.primary:hover,
 a.button.primary:focus-visible,
 button.button.primary:hover,
 button.button.primary:focus-visible {
-  border-color: var(--color-brand-600);
-  background-color: var(--color-brand-600);
+  border-color: var(--color-accent);
+  background-color: var(--color-accent);
 }
 
 a.button.primary[aria-disabled="true"],
@@ -550,6 +572,25 @@ main .section.highlight {
   background-color: var(--color-neutral-100);
   margin: 0;
   padding: var(--spacing-xbig) 0;
+}
+
+/* Electrek Home — full-bleed navy structural band (Section Metadata: Style = Navy) */
+main .section.navy {
+  background-color: var(--color-blue-primary);
+  color: var(--color-paper);
+  margin: 0;
+  padding: var(--spacing-xxbig) 0;
+}
+
+main .section.navy h1,
+main .section.navy h2,
+main .section.navy h3,
+main .section.navy h4 {
+  color: var(--color-paper);
+}
+
+main .section.navy a:not(.button) {
+  color: var(--color-paper);
 }
 
 main .section[data-padding="default"] {

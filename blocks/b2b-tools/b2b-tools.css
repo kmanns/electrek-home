@@ -1,0 +1,85 @@
+/* B2B Tools band — hairline-divided directory row (not cards). Electrek Home. */
+.b2b-tools .b2b-tools-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  border-top: var(--shape-border-width-1) solid var(--color-navy-600);
+  margin-top: var(--spacing-xsmall);
+}
+
+.b2b-tools .b2b-tool {
+  padding: var(--spacing-medium) var(--spacing-medium) var(--spacing-medium) 0;
+  border-left: var(--shape-border-width-1) solid var(--color-navy-600);
+}
+
+.b2b-tools .b2b-tool:first-child {
+  border-left: 0;
+  padding-left: 0;
+}
+
+.b2b-tools .b2b-tool:not(:first-child) {
+  padding-left: var(--spacing-medium);
+}
+
+.b2b-tools .b2b-tool-icon {
+  width: 28px;
+  height: 28px;
+  margin-bottom: var(--spacing-small);
+  stroke: var(--color-accent);
+  fill: none;
+  stroke-width: 1.75;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.b2b-tools .b2b-tool h3 {
+  margin: 0 0 var(--spacing-xsmall);
+  color: var(--color-paper);
+  font-size: 1.15rem;
+  text-transform: uppercase;
+  letter-spacing: 0.01em;
+}
+
+.b2b-tools .b2b-tool h3 a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.b2b-tools .b2b-tool h3 a:hover {
+  color: var(--color-accent);
+}
+
+.b2b-tools .b2b-tool p {
+  margin: 0;
+  color: var(--color-grey-300);
+  font-size: 0.95rem;
+  line-height: 1.5;
+}
+
+@media (max-width: 1024px) {
+  .b2b-tools .b2b-tools-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .b2b-tools .b2b-tool:nth-child(3) {
+    border-left: 0;
+    padding-left: 0;
+  }
+}
+
+@media (max-width: 640px) {
+  .b2b-tools .b2b-tools-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .b2b-tools .b2b-tool,
+  .b2b-tools .b2b-tool:nth-child(3) {
+    border-left: 0;
+    border-top: var(--shape-border-width-1) solid var(--color-navy-600);
+    padding: var(--spacing-medium) 0;
+  }
+
+  .b2b-tools .b2b-tool:first-child {
+    border-top: 0;
+    padding-top: 0;
+  }
+}
