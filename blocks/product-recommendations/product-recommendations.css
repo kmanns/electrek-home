@@ -61,3 +61,10 @@
     gap: 10px;
     align-items: center;
 }
+
+/* Reserve vertical space while recommendations load, to minimize layout
+   shift (CWV/CLS) on the home page's Featured Products section. */
+.product-recommendations .recommendations__wrapper,
+.product-recommendations .recommendations__list {
+  min-height: 320px;
+}
