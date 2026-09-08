@@ -915,3 +915,215 @@ body:has(.seller-assisted-buying-banner) {
   }
 }
 
+
+/* ============================================================
+   Electrek Home — navy header theme (appended override; keep last)
+   Full-bleed navy chrome + torch accent. Popover panels stay light.
+   ============================================================ */
+/* stylelint-disable no-descending-specificity, no-duplicate-selectors */
+
+/* Navy chrome + torch base rule (mobile + desktop) */
+header .nav-wrapper {
+  background-color: var(--color-blue-primary);
+  border-bottom: var(--shape-border-width-4) solid var(--color-accent);
+}
+
+@media (min-width: 900px) {
+  header .nav-wrapper {
+    background-color: var(--color-blue-primary);
+  }
+}
+
+header nav {
+  color: var(--color-paper);
+}
+
+/* --- Utility strip: darker navy, tagline left / links right --- */
+header .nav-utility {
+  background-color: var(--color-blue-dark);
+  color: var(--color-paper);
+}
+
+header .nav-utility .default-content-wrapper {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-medium);
+  max-width: 1264px;
+  margin: 0 auto;
+  padding: 6px 24px;
+}
+
+header .nav-utility p {
+  margin: 0;
+  font-family: var(--type-display-font-family);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-size: 0.78rem;
+  color: var(--color-paper);
+}
+
+header .nav-utility ul {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--spacing-medium);
+  margin: 0;
+  padding: 0;
+  max-width: none;
+  list-style: none;
+}
+
+header .nav-utility a {
+  color: var(--color-paper);
+  font-family: var(--type-display-font-family);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-size: 0.78rem;
+  font-weight: 500;
+}
+
+header .nav-utility a:hover {
+  color: var(--color-accent);
+  text-decoration: none;
+}
+
+@media (min-width: 900px) {
+  header .nav-utility .default-content-wrapper {
+    padding: 6px 32px;
+  }
+}
+
+/* --- Brand wordmark: torch mark + condensed cream uppercase --- */
+header nav .nav-brand a {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--color-paper);
+  font-family: var(--type-display-font-family);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.01em;
+  line-height: 0.95;
+  font-size: 1.5rem;
+}
+
+header nav .nav-brand a::before {
+  content: '';
+  flex: 0 0 auto;
+  width: 34px;
+  height: 34px;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 34 34'%3E%3Crect width='34' height='34' rx='3' fill='%23dd5b1a'/%3E%3Cg fill='none' stroke='%23fbf8f1' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M8 17 17 9l9 8'/%3E%3Cpath d='M10 15.5V25h14v-9.5'/%3E%3Cpath d='M17 25v-5'/%3E%3C/g%3E%3C/svg%3E") center / contain no-repeat;
+}
+
+header nav .nav-brand a:hover {
+  color: var(--color-paper);
+}
+
+/* --- Category bar: cream condensed links, torch hover rule --- */
+header nav .nav-sections {
+  border-top: var(--shape-border-width-1) solid var(--color-navy-600);
+}
+
+header nav .nav-sections .default-content-wrapper > ul > li,
+header nav .nav-sections .default-content-wrapper > ul > li a {
+  color: var(--color-paper);
+  font-family: var(--type-display-font-family);
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  font-weight: 600;
+}
+
+@media (min-width: 900px) {
+  header nav .nav-sections .default-content-wrapper > ul > li {
+    padding: 10px 0;
+    border-bottom: var(--shape-border-width-4) solid transparent;
+  }
+
+  header nav .nav-sections .default-content-wrapper > ul > li:hover,
+  header nav .nav-sections .default-content-wrapper > ul > li:focus-within {
+    border-bottom-color: var(--color-accent);
+    color: var(--color-paper);
+  }
+
+  /* Hide the auth-only "Account" dropdown from the visible category bar
+     (kept in the DOM for renderAuthCombine; login is via utility + account icon) */
+  header nav .nav-sections .default-content-wrapper > ul > li.nav-drop {
+    display: none;
+  }
+}
+
+/* --- Tools: transparent on navy, cream icons, torch cart badge --- */
+header nav .nav-tools {
+  background: transparent;
+}
+
+header nav .nav-tools .nav-tools-wrapper > button {
+  color: var(--color-paper);
+}
+
+header nav .nav-tools button.nav-cart-button,
+header nav .nav-tools button.nav-wishlist-button,
+header nav .nav-tools button.nav-search-button {
+  filter: brightness(0) invert(1);
+}
+
+header nav .nav-tools .nav-tools-wrapper > button:hover {
+  opacity: 0.8;
+}
+
+header nav .nav-tools button.nav-cart-button[data-count]::after {
+  background-color: var(--color-accent);
+  color: var(--color-blue-primary);
+
+  /* undo the icon filter for the count bubble */
+  filter: none;
+}
+
+/* Account (auth) dropdown trigger -> cream */
+.dropdown-wrapper.nav-tools-wrapper .nav-dropdown-button {
+  color: var(--color-paper) !important;
+}
+
+/* --- Popover panels (search / mini-cart / auth) stay light --- */
+header .nav-tools-panel,
+header .nav-search-panel,
+.dropdown-wrapper.nav-tools-wrapper .nav-auth-menu-panel {
+  color: var(--color-text);
+}
+
+header .nav-tools-panel a,
+header .nav-search-panel a,
+.dropdown-wrapper.nav-tools-wrapper .nav-auth-menu-panel a {
+  color: var(--color-text);
+}
+
+/* --- Mobile: hamburger + expanded nav on navy --- */
+header nav .nav-hamburger button {
+  color: var(--color-paper);
+  background-color: transparent;
+}
+
+@media (max-width: 899px) {
+  header nav[aria-expanded='true'] {
+    background-color: var(--color-blue-primary);
+  }
+
+  header nav .nav-sections .default-content-wrapper > ul > li.nav-drop {
+    display: none;
+  }
+}
+
+/* Collapse the header to two content rows (brand row + category row).
+   The desktop media query re-declares grid-template-areas but not
+   grid-template-rows, so the mobile shorthand's row sizing leaked a
+   phantom third row. Pin two auto rows. */
+@media (min-width: 900px) {
+  header nav,
+  header nav[aria-expanded='true'] {
+    grid-template-rows: auto auto;
+    row-gap: 0;
+  }
+}
+
+/* stylelint-enable no-descending-specificity, no-duplicate-selectors */
