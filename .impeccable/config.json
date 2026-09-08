@@ -1,0 +1,53 @@
+{
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "side-tab",
+        "value": "*",
+        "files": [
+          "stardust/current/brand-review.html"
+        ],
+        "createdAt": "2026-09-04T18:52:11.095Z",
+        "reason": "stardust:extract descriptive fixture: brand-review.html renders in the current site's captured pre-redesign palette/chrome by contract; documents current state, not the target design system"
+      },
+      {
+        "rule": "design-system-radius",
+        "value": "*",
+        "files": [
+          "stardust/current/brand-review.html"
+        ],
+        "createdAt": "2026-09-04T18:52:11.139Z",
+        "reason": "stardust:extract descriptive fixture: current-state review, radii reflect captured site not target DESIGN.md"
+      },
+      {
+        "rule": "design-system-color",
+        "value": "*",
+        "files": [
+          "stardust/current/brand-review.html"
+        ],
+        "createdAt": "2026-09-04T18:52:11.183Z",
+        "reason": "stardust:extract descriptive fixture: swatches show captured current-state colors by contract, not target palette"
+      },
+      {
+        "rule": "design-system-color",
+        "value": "rgb(0 0 0 / 30%)",
+        "createdAt": "2026-09-05T02:10:22.463Z",
+        "reason": "kmanns confirmed path: translucent-black text-shadow for hero headline legibility over photo (scrim, not a palette color)"
+      },
+      {
+        "rule": "design-system-color",
+        "value": "#000",
+        "createdAt": "2026-09-08T14:08:27.351Z",
+        "reason": "kmanns: CSS mask luminance value (wordmark house-glyph mask), not a palette color"
+      },
+      {
+        "rule": "design-system-color",
+        "value": "rgb(0 0 0 / 50%)",
+        "createdAt": "2026-09-08T14:08:27.394Z",
+        "reason": "kmanns: pre-existing translucent-black overlay/scrim in header.css, not a palette color"
+      }
+    ]
+  }
+}
