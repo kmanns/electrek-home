@@ -18,3 +18,9 @@
   #signin-form {
     width: 800px;
   }
+
+/* Empty-state card should sit on the cream page ground, not a white block,
+   so it matches the rest of the wishlist section. */
+.commerce-wishlist .wishlist-empty-wishlist .dropin-card--secondary {
+  background-color: transparent;
+}
