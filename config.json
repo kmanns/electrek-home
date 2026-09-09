@@ -2,7 +2,11 @@
   "public": {
     "default": {
       "commerce-endpoint": "https://na1-sandbox.api.commerce.adobe.com/8PxVw1vHCrSKt7NF92x3Na/graphql",
+      "commerce-core-endpoint": "https://na1-sandbox.api.commerce.adobe.com/CWC1Z3dRYVnZ5UEFozgrDk/graphql",
       "headers": {
+        "all": {
+          "Store": "cueng"
+        },
         "cs": {
           "AC-View-ID": "03fdaffb-e2c7-4458-aedd-d9ef920dcf0b",
           "AC-Price-Book-ID": "base_price_book"
@@ -17,7 +21,7 @@
         "environment": "Testing",
         "environment-id": "8PxVw1vHCrSKt7NF92x3Na",
         "locale": "en-US",
-        "store-url": "{{STORE_URL}}",
+        "store-url": "https://main--electrek-home--kmanns.aem.live",
         "store-view-currency-code": "USD",
         "storefront-template": "Other",
         "view-id": "03fdaffb-e2c7-4458-aedd-d9ef920dcf0b"
