@@ -4,11 +4,15 @@
  * Primary: live categories from Catalog Service (Adobe Commerce Optimizer).
  * Fallback: author-picked tiles (image + label link) if the fetch is empty.
  *
+ * A category with no catalog image falls back to a representative product
+ * image from that category (Live Search), so every tile shows real imagery.
+ *
  * Optional block config:
  *   root  — a category slug; show its children instead of the top level.
  *   limit — max number of tiles.
  */
 
+import { getConfigValue } from '@dropins/tools/lib/aem/configs.js';
 import { CS_FETCH_GRAPHQL } from '../../scripts/commerce.js';
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
@@ -20,6 +24,12 @@ const CATEGORY_QUERY = `query CategoryGrid {
     level
     parentSlug
     images { url roles }
+  }
+}`;
+
+const PRODUCT_IMAGE_QUERY = `query CategoryTileImage($cat: String!) {
+  productSearch(phrase: "", filter: [{ attribute: "categoryPath", eq: $cat }], page_size: 1) {
+    items { productView { images { url roles } } }
   }
 }`;
 
@@ -87,6 +97,21 @@ function readAuthoredTiles(block) {
   }).filter((t) => t.name);
 }
 
+/** Representative product image for a category (fallback when no category image). */
+async function firstProductImage(slug) {
+  try {
+    const res = await CS_FETCH_GRAPHQL.fetchGraphQl(PRODUCT_IMAGE_QUERY, {
+      variables: { cat: slug },
+    });
+    const imgs = res?.data?.productSearch?.items?.[0]?.productView?.images || [];
+    const roled = (r) => imgs.find((i) => (i.roles || []).includes(r));
+    const pick = roled('small_image') || roled('thumbnail') || roled('image') || imgs[0];
+    return pick?.url || null;
+  } catch (e) {
+    return null;
+  }
+}
+
 async function fetchCategories(rootSlug) {
   try {
     const res = await CS_FETCH_GRAPHQL.fetchGraphQl(CATEGORY_QUERY);
@@ -113,6 +138,19 @@ export default async function decorate(block) {
   let tiles = await fetchCategories(config.root);
   if (!tiles.length) tiles = authored;
   if (config.limit) tiles = tiles.slice(0, Number(config.limit));
+
+  // Live Search requires the scope-locale header; harmless for Catalog Service.
+  try {
+    const locale = getConfigValue('analytics.locale') || 'en-US';
+    CS_FETCH_GRAPHQL.setFetchGraphQlHeader('AC-Scope-Locale', locale);
+  } catch (e) { /* header setter unavailable — skip fallback imagery */ }
+
+  // Fill tiles that have no category image with a representative product image.
+  await Promise.all(tiles.map(async (t) => {
+    if (!t.imageUrl && t.href && t.href.startsWith('/')) {
+      t.imageUrl = await firstProductImage(t.href.slice(1));
+    }
+  }));
 
   const grid = document.createElement('div');
   grid.className = 'category-grid-inner';
