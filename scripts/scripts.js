@@ -160,15 +160,15 @@ async function loadEager(doc) {
   const main = doc.querySelector('main');
   if (main) {
     try {
-      await initializeCommerce();
       decorateMain(main);
       applyTemplates(doc);
+      document.body.classList.add('appear');
+      await initializeCommerce();
       await loadCommerceEager();
     } catch (e) {
       console.error('Error initializing commerce configuration:', e);
       loadErrorPage(418);
     }
-    document.body.classList.add('appear');
     await loadSection(main.querySelector('.section'), waitForFirstImage);
   }
 
@@ -187,7 +187,6 @@ async function loadEager(doc) {
  * @param {Element} doc The container element
  */
 async function loadLazy(doc) {
-  await runExperimentationLazy(doc, experimentationConfig);
   loadHeader(doc.querySelector('header'));
 
   const main = doc.querySelector('main');
@@ -203,6 +202,9 @@ async function loadLazy(doc) {
 
   loadCSS(`${window.hlx.codeBasePath}/styles/lazy-styles.css`);
   loadFonts();
+
+  // The Sidekick simulation UI is preview-only and must not delay page rendering.
+  runExperimentationLazy(doc, experimentationConfig);
 }
 
 /**
