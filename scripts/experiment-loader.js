@@ -8,6 +8,14 @@ const isExperimentationEnabled = () => document.head.querySelector(
 ) || [...document.querySelectorAll('.section-metadata div')]
   .some((element) => element.textContent.match(/Experiment|Campaign|Audience/i));
 
+const isPreview = (config) => {
+  const { host, hostname, origin } = window.location;
+  return hostname === 'localhost'
+    || hostname.endsWith('.page')
+    || (typeof config.isProd === 'function' && !config.isProd())
+    || (config.prodHost && ![host, hostname, origin].includes(config.prodHost));
+};
+
 /**
  * Load the experimentation engine for live pages.
  *
@@ -16,7 +24,7 @@ const isExperimentationEnabled = () => document.head.querySelector(
  * @returns {Promise<unknown>} plugin result
  */
 export async function runExperimentation(doc, config) {
-  if (!isExperimentationEnabled()) {
+  if (isPreview(config) || !isExperimentationEnabled()) {
     window.addEventListener('message', (event) => {
       if (event.data?.type === 'hlx:experimentation-get-config') {
         event.source?.postMessage({
@@ -46,13 +54,7 @@ export async function runExperimentation(doc, config) {
  * @returns {Promise<unknown>} plugin result
  */
 export async function runExperimentationLazy(doc, config) {
-  const { host, hostname, origin } = window.location;
-  const isPreview = hostname === 'localhost'
-    || hostname.endsWith('.page')
-    || (typeof config.isProd === 'function' && !config.isProd())
-    || (config.prodHost && ![host, hostname, origin].includes(config.prodHost));
-
-  if (!isPreview) return null;
+  if (!isPreview(config)) return null;
 
   try {
     const { loadLazy } = await import('../plugins/experimentation/src/index.js');
