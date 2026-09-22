@@ -47,10 +47,18 @@
     }
 </script>
 
+<script nonce="aem">
+    window.SAMPLE_PAGEVIEWS_AT_RATE = document.head.querySelector('[name^="experiment"],[name^="campaign-"],[name^="audience-"]')
+        || [...document.querySelectorAll('.section-metadata div')].some((element) => element.textContent.match(/Experiment|Campaign|Audience/i))
+        ? 'high'
+        : 100;
+</script>
+
 <script nonce="aem" src="/scripts/aem.js" type="module"></script>
 <script nonce="aem" src="/scripts/scripts.js" type="module"></script>
 <script nonce="aem" src="/scripts/commerce.js" type="module"></script>
 
+<link rel="modulepreload" href="/scripts/experiment-loader.js" />
 <link rel="modulepreload" href="/scripts/__dropins__/tools/lib/aem/configs.js" />
 <link rel="modulepreload" href="/scripts/initializers/index.js" />
 <link rel="modulepreload" href="/scripts/initializers/auth.js" />

@@ -21,6 +21,19 @@ import {
   IS_UE,
   IS_DA,
 } from './commerce.js';
+import {
+  runExperimentation,
+  runExperimentationLazy,
+} from './experiment-loader.js';
+
+const experimentationConfig = {
+  prodHost: 'main--electrek-home--kmanns.aem.live',
+  isProd: () => !window.location.hostname.endsWith('.page')
+    && window.location.hostname !== 'localhost',
+  storage: window.sessionStorage,
+  decorateFunction: decorateMain,
+  simulationUI: 'auto',
+};
 
 /**
  * Builds hero block and prepends to main in a new section.
@@ -142,6 +155,7 @@ export function decorateMain(main) {
 async function loadEager(doc) {
   document.documentElement.lang = 'en';
   decorateTemplateAndTheme();
+  await runExperimentation(doc, experimentationConfig);
 
   const main = doc.querySelector('main');
   if (main) {
@@ -173,6 +187,7 @@ async function loadEager(doc) {
  * @param {Element} doc The container element
  */
 async function loadLazy(doc) {
+  await runExperimentationLazy(doc, experimentationConfig);
   loadHeader(doc.querySelector('header'));
 
   const main = doc.querySelector('main');
