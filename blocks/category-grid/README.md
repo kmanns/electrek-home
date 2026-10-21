@@ -16,18 +16,25 @@ Create a `category-grid` block. Add one row per department, **two cells**:
 | ![](plumbing.jpg)      | [Plumbing](/plumbing)                |
 | ![](safety.jpg)        | [Safety & Workwear](/safety)         |
 
-- **Cell 1 — image:** the tile thumbnail (16:9 crop).
+- **Cell 1 — image:** the tile thumbnail (16:9 crop). Insert it with the AEM
+  Assets picker or any image; the authored `<picture>` is used as-is.
 - **Cell 2 — label:** a link; its text is the department name and its href is
   the tile's destination (category page / PLP).
 
-## Dynamic (future)
+## Live categories + authored images
 
-`category-grid.js` builds tiles from `[...block.children]` today. To source
-tiles live from **Catalog Service** (Adobe Commerce Optimizer), replace the
-tile-collection step with a `CS_FETCH_GRAPHQL.fetchGraphQl(<categories query>)`
-call keyed off the configured `rootCategory` (`config.json →
-plugins.picker.rootCategory`). Verify the exact query against the live catalog
-before shipping — it could not be verified in the local dev environment.
+The tile list (names, links, order) comes live from **Catalog Service**
+(Adobe Commerce Optimizer) `categoryTree` — top-level categories, or the
+children of the optional `root` config slug. Authored rows supply the images:
+
+- A row is matched to a category by its **label** (case/punctuation-insensitive,
+  `&` = "and"), then by the **last path segment of its link** (e.g.
+  `/lawn-mowers`).
+- **Image priority:** authored image → catalog `BASE` image → empty tile.
+- Rows that match no catalog category are **ignored** while the catalog is
+  reachable.
+- If the catalog fetch fails or returns nothing, the authored rows render
+  exactly as written.
 
 ## Layout
 

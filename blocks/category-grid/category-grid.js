@@ -3,6 +3,9 @@
  * Renders an aisle-directory grid of top-level departments.
  * Primary: live categories from Catalog Service (Adobe Commerce Optimizer).
  * Fallback: author-picked tiles (image + label link) if the fetch is empty.
+ * Images: an authored image (e.g. from AEM Assets) on a row whose label or
+ * link matches a category wins over the catalog image. Authored rows that
+ * match no category are ignored while the catalog is reachable.
  *
  * Optional block config:
  *   root  — a category slug; show its children instead of the top level.
@@ -41,14 +44,23 @@ function pickImage(images) {
   return base?.url || null;
 }
 
-function buildTile({ href, name, imageUrl }) {
+function buildTile({
+  href, name, picture, imageUrl,
+}) {
   const tile = document.createElement('a');
   tile.className = 'category-tile';
   tile.href = href || '#';
 
   const media = document.createElement('div');
   media.className = 'category-tile-media';
-  if (imageUrl) {
+  if (picture) {
+    const img = picture.querySelector('img');
+    if (img) {
+      if (!img.alt) img.alt = name;
+      img.loading = 'lazy';
+    }
+    media.append(picture);
+  } else if (imageUrl) {
     const img = document.createElement('img');
     img.src = imageUrl;
     img.alt = name;
@@ -82,9 +94,42 @@ function readAuthoredTiles(block) {
     return {
       href: link ? link.getAttribute('href') : '#',
       name: (link ? link.textContent : textFallback).trim(),
-      imageUrl: img ? img.getAttribute('src') : null,
+      picture: img ? (img.closest('picture') || img) : null,
     };
   }).filter((t) => t.name);
+}
+
+const normalize = (s) => (s || '').toLowerCase().replace(/&/g, 'and').replace(/[^a-z0-9]/g, '');
+
+function slugFromHref(href) {
+  if (!href) return '';
+  try {
+    const { pathname } = new URL(href, window.location.href);
+    return pathname.replace(/\.html$/, '').split('/').filter(Boolean).pop() || '';
+  } catch (e) {
+    return '';
+  }
+}
+
+/** Apply authored images to catalog categories, matched by label, then link. */
+function applyAuthoredImages(categories, authored) {
+  const byName = new Map();
+  const bySlug = new Map();
+  authored.filter((t) => t.picture).forEach((t) => {
+    const name = normalize(t.name);
+    const slug = slugFromHref(t.href);
+    if (name && !byName.has(name)) byName.set(name, t);
+    if (slug && !bySlug.has(slug)) bySlug.set(slug, t);
+  });
+
+  const used = new Set();
+  return categories.map((c) => {
+    const match = [byName.get(normalize(c.name)), bySlug.get(c.slug)]
+      .find((t) => t && !used.has(t));
+    if (!match) return c;
+    used.add(match);
+    return { ...c, picture: match.picture };
+  });
 }
 
 async function fetchCategories(rootSlug) {
@@ -96,6 +141,7 @@ async function fetchCategories(rootSlug) {
       ? tree.filter((c) => c.parentSlug === rootSlug)
       : tree.filter((c) => c.level === 1);
     return nodes.map((c) => ({
+      slug: c.slug,
       href: `/${c.slug}`,
       name: c.name,
       imageUrl: pickImage(c.images),
@@ -110,8 +156,8 @@ export default async function decorate(block) {
   const config = { ...block.dataset };
   const authored = readAuthoredTiles(block);
 
-  let tiles = await fetchCategories(config.root);
-  if (!tiles.length) tiles = authored;
+  const categories = await fetchCategories(config.root);
+  let tiles = categories.length ? applyAuthoredImages(categories, authored) : authored;
   if (config.limit) tiles = tiles.slice(0, Number(config.limit));
 
   const grid = document.createElement('div');
