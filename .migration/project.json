@@ -1,0 +1,9 @@
+{
+  "sites": {
+    "electrek-home": {
+      "previewOrg": "kmanns",
+      "previewSite": "electrek-home",
+      "contentHostUrl": "https://content.da.live/kmanns/electrek-home/"
+    }
+  }
+}
