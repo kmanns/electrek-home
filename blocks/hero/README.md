@@ -19,8 +19,9 @@ One cell. Everything except the headline is optional:
   always add one alongside a video.
 - **Headline:** `h1`.
 - **CTA:** a **bold** link (italic or bold+italic for other button styles).
-- **Video (optional):** a **plain** link — not bold or italic — on its own
-  line. It's removed from the overlay and played behind it.
+- **Video (optional):** the video URL on its own line — either pasted as plain
+  text or as a **plain** link (not bold or italic). It's removed from the
+  overlay and played behind it. URLs with spaces must stay encoded (`%20`).
 
 ### Accepted video links
 

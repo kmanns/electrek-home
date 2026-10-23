@@ -2,10 +2,11 @@
  * Hero — Electrek Home
  * Text overlay over an image or a background video.
  *
- * Video: a plain (not bold/italic) link in the hero to an MP4/WebM file, an
- * AEM Assets video, YouTube, or Vimeo. It plays muted and looping behind the
- * overlay, with a pause/play button. The authored image is the placeholder
- * and the fallback on small screens and for prefers-reduced-motion.
+ * Video: a plain (not bold/italic) link — or a line that is just the URL — in
+ * the hero to an MP4/WebM file, an AEM Assets video, YouTube, or Vimeo. It
+ * plays muted and looping behind the overlay, with a pause/play button. The
+ * authored image is the placeholder and the fallback on small screens and for
+ * prefers-reduced-motion.
  * No video link → the block is left exactly as authored.
  */
 
@@ -166,15 +167,33 @@ function startVideo(block, video) {
   DESKTOP.addEventListener('change', stopIfNeeded);
 }
 
-export default function decorate(block) {
+/**
+ * Finds the authored video: a plain (non-button) link, or a paragraph holding
+ * only a bare video URL (DA doesn't auto-link pasted URLs).
+ * @returns {{ video: object, el: Element } | null} the video and the element to remove
+ */
+function findVideo(block) {
   const link = [...block.querySelectorAll('a[href]')]
     .find((a) => !a.classList.contains('button') && parseVideo(a.href));
-  if (!link) return;
+  if (link) {
+    const p = link.closest('p');
+    const el = p && p.textContent.trim() === link.textContent.trim() ? p : link;
+    return { video: parseVideo(link.href), el };
+  }
 
-  const video = parseVideo(link.href);
-  const p = link.closest('p');
-  if (p && p.textContent.trim() === link.textContent.trim()) p.remove();
-  else link.remove();
+  const bare = [...block.querySelectorAll('p')].find((p) => {
+    const text = p.textContent.trim();
+    return !p.querySelector('a') && /^https?:\/\/\S+$/.test(text) && parseVideo(text);
+  });
+  return bare ? { video: parseVideo(bare.textContent.trim()), el: bare } : null;
+}
+
+export default function decorate(block) {
+  const found = findVideo(block);
+  if (!found) return;
+
+  const { video } = found;
+  found.el.remove();
 
   block.classList.add('hero-video');
 
