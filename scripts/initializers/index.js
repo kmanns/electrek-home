@@ -30,9 +30,14 @@ const setCustomerGroupHeader = (customerGroupId) => {
   CS_FETCH_GRAPHQL.setFetchGraphQlHeader('Magento-Customer-Group', customerGroupId);
 };
 
+// Maps the customer group price book ID returned by Commerce (e.g. geck::<group hash>)
+// to an ACO price book ID. Unmapped groups fall back to the configured default price book.
 const setAdobeCommerceOptimizerHeader = (adobeCommerceOptimizer) => {
-  if (adobeCommerceOptimizer?.priceBookId) {
-    CS_FETCH_GRAPHQL.setFetchGraphQlHeader('AC-Price-Book-ID', adobeCommerceOptimizer.priceBookId);
+  const priceBooks = getConfigValue('adobe-commerce-optimizer-price-books') || {};
+  const priceBookId = priceBooks[adobeCommerceOptimizer?.priceBookId]
+    || getConfigValue('headers.cs.AC-Price-Book-ID');
+  if (priceBookId) {
+    CS_FETCH_GRAPHQL.setFetchGraphQlHeader('AC-Price-Book-ID', priceBookId);
   } else {
     CS_FETCH_GRAPHQL.removeFetchGraphQlHeader('AC-Price-Book-ID');
   }
