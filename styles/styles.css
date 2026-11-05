@@ -158,6 +158,7 @@
   --background-color: var(--color-cream);
   --nav-height: 6.4rem;
   --nav-utility-height: 3.6rem;
+  --nav-desktop-height: 12.5rem;
 
   /* Heading scale (mobile-first, see DESIGN.md #3) */
   --heading-h1-size: 3.2rem;
@@ -217,14 +218,24 @@ header {
   height: calc(var(--nav-height) + var(--nav-utility-height));
 }
 
-header:not(:has(.nav-utility)) {
+/* reserve the utility bar until the header has loaded, to avoid layout shift */
+header:has(.header[data-block-status="loaded"]):not(:has(.nav-utility)) {
   height: var(--nav-height);
 }
 
-/* nav-wrapper is in-flow (not fixed) at desktop widths — let header size to content */
+/* nav-wrapper is in-flow (not fixed) at desktop widths — let header size to content,
+   but reserve its loaded height until then */
 @media (min-width: 900px) {
-  header,
-  header:not(:has(.nav-utility)) {
+  header {
+    height: auto;
+    min-height: calc(var(--nav-desktop-height) + var(--nav-utility-height));
+  }
+
+  header:has(.header[data-block-status="loaded"]) {
+    min-height: 0;
+  }
+
+  header:has(.header[data-block-status="loaded"]):not(:has(.nav-utility)) {
     height: auto;
   }
 }

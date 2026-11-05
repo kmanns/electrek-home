@@ -53,10 +53,11 @@ const persistCartDataInSession = (data) => {
 
 const setupAemAssetsImageParams = () => {
   if (isAemAssetsEnabled()) {
-    // Convert decimal values to integers for AEM Assets compatibility
+    // Convert decimal values to integers for AEM Assets compatibility.
+    // Unset values stay unset so they are left off the URL (not sent as NaN).
     initializers.setImageParamKeys({
-      width: (value) => ['width', Math.floor(value)],
-      height: (value) => ['height', Math.floor(value)],
+      width: (value) => ['width', value == null ? value : Math.floor(value)],
+      height: (value) => ['height', value == null ? value : Math.floor(value)],
       quality: 'quality',
       auto: 'auto',
       crop: 'crop',

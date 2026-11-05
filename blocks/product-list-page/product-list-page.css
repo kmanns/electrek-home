@@ -70,6 +70,11 @@
     margin-block-end: var(--spacing-small);
 }
 
+/* Reserve space until products render so the footer doesn't shift */
+.block.product-list-page .search__product-list:empty {
+    min-height: 100vh;
+}
+
 .block.product-list-page .search__pagination {
     grid-area: pagination;
     margin-block-end: var(--spacing-small);
@@ -135,5 +140,10 @@
     .block.product-list-page .search__product-sort {
         display: flex;
         justify-content: flex-end;
+    }
+
+    /* Reserve the width the picker takes once sort options load */
+    .block.product-list-page .search__product-sort .dropin-picker {
+        min-width: 19rem;
     }
 }
