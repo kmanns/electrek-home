@@ -251,6 +251,23 @@ header .nav-utility a:hover {
   text-decoration: underline;
 }
 
+/* keep the utility bar on one line (also while web fonts load) to avoid layout shift */
+@media (max-width: 899px) {
+  header .nav-utility p {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  /* stylelint-disable-next-line no-descending-specificity */
+  header .nav-utility ul {
+    flex-shrink: 0;
+    flex-wrap: nowrap;
+    white-space: nowrap;
+  }
+}
+
 @media (min-width: 900px) {
   header .nav-utility ul {
     padding: var(--spacing-xxsmall) var(--spacing-big);
