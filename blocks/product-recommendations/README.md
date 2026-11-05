@@ -10,7 +10,7 @@ The Product Recommendations block provides personalized product recommendations 
 
 | Configuration Key | Type | Default | Description | Required | Side Effects |
 |-------------------|------|---------|-------------|----------|--------------|
-| `recid` | string | — | Recommendation unit ID to render. | **Yes** | Identifies which recommendation unit to fetch |
+| `recid` | string | — | Recommendation unit ID to render. The label `Rec-Id` (`rec-id`) is also accepted. | **Yes** | Identifies which recommendation unit to fetch |
 | `currentsku` | string | undefined | Current product SKU. Only set this on pages where ACDL `productContext` is not populated. For cross-sell and upsell recommendation types (`viewed-viewed`, `viewed-bought`, `bought-bought`, `more-like-this`, `visual`) this value (from config or ACDL) is required for the unit to return results. | No | Takes precedence over ACDL-derived SKU; if set without `currentprice`, no price is passed to the service |
 | `currentprice` | number | undefined | Current product price as an anchor for dynamic/relative price filter operators. **May only be set together with `currentsku`.** Only needed for SKU-related recommendation types with dynamic or relative price filters when ACDL product context is unavailable. The value should match the effective price shown to the shopper (`specialPrice ?? regularPrice`). | No | Takes precedence over ACDL-derived price; has no effect if `currentsku` is not also set |
 

@@ -95,7 +95,10 @@ export default async function decorate(block) {
   });
 
   // Configuration
-  const { currentsku, currentprice, recid } = readBlockConfig(block);
+  const config = readBlockConfig(block);
+  const { currentsku, currentprice } = config;
+  // Accept "Rec-Id" as an alias, since authors commonly hyphenate the label
+  const recid = config.recid || config['rec-id'];
 
   // Layout
   const fragment = document.createRange().createContextualFragment(`
