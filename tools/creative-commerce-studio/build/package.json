@@ -1,0 +1,12 @@
+{
+  "name": "ccs-spectrum-bundle",
+  "private": true,
+  "description": "Builds vendor/spectrum.js (Spectrum Web Components, Spectrum 2 theme) for the Creative Commerce Studio plugin.",
+  "scripts": {
+    "build": "esbuild entry.js --bundle --format=esm --minify --target=es2022 --legal-comments=linked --outfile=../vendor/spectrum.js"
+  },
+  "devDependencies": {
+    "@spectrum-web-components/bundle": "1.12.6",
+    "esbuild": "^0.25.0"
+  }
+}

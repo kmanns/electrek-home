@@ -10,3 +10,5 @@ scripts/commerce-events-sdk.js
 plugins/
 cypress/
 app-builder/
+tools/creative-commerce-studio/vendor
+tools/creative-commerce-studio/build
