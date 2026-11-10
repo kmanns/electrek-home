@@ -1,0 +1,91 @@
+# Creative Commerce Studio — App Builder backend (headless: actions only).
+# Values come from .env at deploy time (see .env.example). `final: true` stops
+# request parameters from overriding these inputs.
+application:
+  runtimeManifest:
+    packages:
+      creative-commerce-studio:
+        license: Apache-2.0
+        inputs:
+          LOG_LEVEL: info
+          ALLOWED_ORIGINS: $ALLOWED_ORIGINS
+          IMS_ALLOWED_CLIENT_IDS: $IMS_ALLOWED_CLIENT_IDS
+          IMS_ALLOWED_ORGS: $IMS_ALLOWED_ORGS
+          TOKEN_ENCRYPTION_KEY: $TOKEN_ENCRYPTION_KEY
+          BOX_CLIENT_ID: $BOX_CLIENT_ID
+          BOX_CLIENT_SECRET: $BOX_CLIENT_SECRET
+          BOX_REDIRECT_URI: $BOX_REDIRECT_URI
+          BOX_ALLOWED_FOLDER_ID: $BOX_ALLOWED_FOLDER_ID
+          FFCPE_API_BASE: $FFCPE_API_BASE
+          FFCPE_API_VERSION: $FFCPE_API_VERSION
+          FFCPE_WORKFLOW_ID: $FFCPE_WORKFLOW_ID
+          FFCPE_RECIPE_VERSION: $FFCPE_RECIPE_VERSION
+          FFCPE_CLIENT_ID: $FFCPE_CLIENT_ID
+          FFCPE_CLIENT_SECRET: $FFCPE_CLIENT_SECRET
+          FFCPE_SCOPES: $FFCPE_SCOPES
+          FFCPE_EXECUTE_TEMPLATE: $FFCPE_EXECUTE_TEMPLATE
+          FFCPE_OUTPUT_MATCH: $FFCPE_OUTPUT_MATCH
+          AEM_AUTHOR_URL: $AEM_AUTHOR_URL
+          AEM_DELIVERY_URL: $AEM_DELIVERY_URL
+          AEM_CLIENT_ID: $AEM_CLIENT_ID
+          AEM_CLIENT_SECRET: $AEM_CLIENT_SECRET
+          AEM_SCOPES: $AEM_SCOPES
+          AEM_TARGET_FOLDER: $AEM_TARGET_FOLDER
+        actions:
+          box-status:
+            function: actions/box-status/index.js
+            web: 'yes'
+            runtime: nodejs:22
+            annotations: &web
+              final: true
+              web-custom-options: true
+              require-adobe-auth: false
+          box-auth-start:
+            function: actions/box-auth-start/index.js
+            web: 'yes'
+            runtime: nodejs:22
+            annotations: *web
+          box-auth-callback:
+            function: actions/box-auth-callback/index.js
+            web: 'yes'
+            runtime: nodejs:22
+            annotations: *web
+          box-files:
+            function: actions/box-files/index.js
+            web: 'yes'
+            runtime: nodejs:22
+            annotations: *web
+          box-disconnect:
+            function: actions/box-disconnect/index.js
+            web: 'yes'
+            runtime: nodejs:22
+            annotations: *web
+          job-submit:
+            function: actions/job-submit/index.js
+            web: 'yes'
+            runtime: nodejs:22
+            limits:
+              timeout: 120000
+              memorySize: 512
+            annotations: *web
+          job-status:
+            function: actions/job-status/index.js
+            web: 'yes'
+            runtime: nodejs:22
+            limits:
+              timeout: 120000
+              memorySize: 512
+            annotations: *web
+          job-accept:
+            function: actions/job-accept/index.js
+            web: 'yes'
+            runtime: nodejs:22
+            limits:
+              timeout: 180000
+              memorySize: 512
+            annotations: *web
+          job-recent:
+            function: actions/job-recent/index.js
+            web: 'yes'
+            runtime: nodejs:22
+            annotations: *web

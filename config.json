@@ -32,6 +32,9 @@
         "storefront-template": "Other",
         "view-id": "03fdaffb-e2c7-4458-aedd-d9ef920dcf0b"
       },
+      "creative-commerce-studio": {
+        "backend-url": ""
+      },
       "plugins": {
         "picker": {
           "rootCategory": "{{ROOT_CATEGORY_ID}}"

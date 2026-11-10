@@ -1,0 +1,17 @@
+{
+  "definitions": [
+    {
+      "title": "Creative Product Spotlight",
+      "id": "creative-product-spotlight",
+      "plugins": {
+        "da": {
+          "name": "creative-product-spotlight",
+          "rows": 8,
+          "columns": 2
+        }
+      }
+    }
+  ],
+  "models": [],
+  "filters": []
+}
