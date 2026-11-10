@@ -3,12 +3,14 @@
  *
  * Product -> Source -> Prepare -> Review -> Insert
  *
+ * UI: Spectrum Web Components, Spectrum 2 theme (vendor/spectrum.js, built from ./build).
  * Browser side only: catalog lookup (public storefront API), UI state and
  * block insertion. Box OAuth, Box downloads, FFCPE runs and Product Visuals
  * delivery all happen in the App Builder backend; no tokens are stored here.
  */
 // eslint-disable-next-line import/no-unresolved
 import DA_SDK from 'https://da.live/nx/utils/sdk.js';
+import './vendor/spectrum.js';
 import { lookupProduct } from './lib/catalog.js';
 import { createBackend, BackendError } from './lib/backend.js';
 import { buildSpotlightHTML } from './lib/block-table.js';
@@ -18,6 +20,18 @@ const TERMINAL = ['ready-for-review', 'render-failed', 'delivery-failed', 'accep
 const RERUNNABLE = ['render-failed', 'cancelled', 'submit-uncertain'];
 const IMAGE_EXT = /\.(png|jpe?g)$/i;
 
+/** Job status -> sp-status-light variant + author-facing label. */
+const STATUS = {
+  queued: ['neutral', 'Queued'],
+  processing: ['informative', 'Processing'],
+  'ready-for-review': ['positive', 'Ready for review'],
+  accepted: ['positive', 'Delivered'],
+  'render-failed': ['negative', 'Production failed'],
+  'delivery-failed': ['negative', 'Delivery failed'],
+  'submit-uncertain': ['notice', 'Outcome unknown'],
+  cancelled: ['neutral', 'Cancelled'],
+};
+
 const root = document.getElementById('ccs');
 
 const state = {
@@ -25,12 +39,13 @@ const state = {
   sdk: null, // { context, token, actions } when running inside Workspace
   backend: null,
   backendConfigured: false,
+  sku: '',
   product: null,
   productError: null,
   box: {
     checked: false, connected: false, user: null, error: null,
   },
-  folder: null, // { id, name, entries: [] }
+  folder: null, // { id, name, parentId, entries: [] }
   file: null, // { id, name, versionId, size, thumbnail }
   confirmed: false,
   job: null,
@@ -64,6 +79,36 @@ function h(tag, props = {}, ...children) {
   return node;
 }
 
+function icon(name, slot) {
+  return h(`sp-icon-${name}`, { slot });
+}
+
+function button(label, {
+  variant = 'secondary', onClick, disabled, pending, iconName, treatment, size = 'm', quiet,
+} = {}) {
+  const b = h('sp-button', {
+    variant, treatment, size, disabled: !!disabled, pending: !!pending, quiet, onClick,
+  });
+  if (iconName) b.append(icon(iconName, 'icon'));
+  b.append(label);
+  return b;
+}
+
+/** Spectrum 2 "inline alert" pattern from tokens. variant: informative|positive|notice|negative */
+function alert(variant, heading, text) {
+  return h(
+    'div',
+    { class: `ccs-alert is-${variant}`, role: variant === 'negative' ? 'alert' : 'status' },
+    heading ? h('p', { class: 'ccs-alert-heading', text: heading }) : null,
+    text ? h('p', { class: 'ccs-alert-text', text }) : null,
+  );
+}
+
+function statusLight(status) {
+  const [variant, label] = STATUS[status] || ['neutral', status];
+  return h('sp-status-light', { variant, size: 's', text: label });
+}
+
 function errorText(err) {
   if (err instanceof BackendError && err.code === 'box-reauth') {
     return 'Your Box connection expired or was revoked. Reconnect Box to continue.';
@@ -90,12 +135,13 @@ function resetFrom(step) {
   if (step <= 2) { state.job = null; state.jobError = null; }
 }
 
+let render = () => {};
+
 /* ---------- actions ---------- */
 
-async function onLookup(event) {
-  event.preventDefault();
-  const sku = new FormData(event.target).get('sku')?.toString().trim();
-  if (!sku) return;
+async function onLookup() {
+  const sku = state.sku.trim();
+  if (!sku || state.busy) return;
   state.busy = true;
   state.productError = null;
   render();
@@ -117,6 +163,17 @@ async function onLookup(event) {
   }
 }
 
+async function openFolder(folderId) {
+  try {
+    const listing = await state.backend.boxFiles(folderId);
+    state.folder = { ...listing.folder, entries: listing.entries || [] };
+    state.box.error = null;
+  } catch (e) {
+    if (e.code === 'box-reauth') state.box.connected = false;
+    state.box.error = errorText(e);
+  }
+}
+
 async function refreshBox() {
   if (!state.backendConfigured) return;
   try {
@@ -129,18 +186,6 @@ async function refreshBox() {
     state.box = {
       checked: true, connected: false, user: null, error: errorText(e),
     };
-  }
-}
-
-async function openFolder(folderId) {
-  try {
-    const listing = await state.backend.boxFiles(folderId);
-    state.folder = listing.folder;
-    state.folder.entries = listing.entries || [];
-    state.box.error = null;
-  } catch (e) {
-    if (e.code === 'box-reauth') state.box.connected = false;
-    state.box.error = errorText(e);
   }
 }
 
@@ -226,7 +271,7 @@ async function pollJob(jobId) {
     }
   } catch (e) {
     state.jobError = errorText(e);
-    // keep the job; author can retry status without resubmitting
+    // keep the job; the author can refresh status without resubmitting
   }
   render();
 }
@@ -258,7 +303,7 @@ async function onSubmitJob() {
 }
 
 async function onAccept() {
-  if (!jobMatchesSelection() || state.job.status !== 'ready-for-review') return;
+  if (!jobMatchesSelection() || !['ready-for-review', 'delivery-failed'].includes(state.job.status)) return;
   state.busy = true;
   state.jobError = null;
   render();
@@ -287,23 +332,23 @@ function spotlightData() {
   };
 }
 
-async function onInsert() {
+function onInsert() {
   setNotice(null);
   if (!jobMatchesSelection() || state.job.status !== 'accepted') {
-    setNotice('error', 'Only an accepted job for the selected product and file can be inserted.');
+    setNotice('negative', 'Only an accepted job for the selected product and file can be inserted.');
     render();
     return;
   }
   try {
     const html = buildSpotlightHTML(spotlightData());
     if (!state.sdk?.actions?.sendHTML) {
-      setNotice('error', 'Insertion is only available when the plugin is opened from a Workspace document.');
+      setNotice('negative', 'Insertion is only available when the plugin is opened from a Workspace document.');
     } else {
       state.sdk.actions.sendHTML(html);
-      setNotice('success', 'Spotlight inserted at your cursor. Save and preview the page to see it.');
+      setNotice('positive', 'Spotlight inserted at your cursor. Save and preview the page to see it.');
     }
   } catch (e) {
-    setNotice('error', errorText(e));
+    setNotice('negative', errorText(e));
   }
   render();
 }
@@ -315,6 +360,7 @@ async function onResume(job) {
     const product = await lookupProduct(job.sku);
     if (!product) throw new Error(`SKU ${job.sku} is no longer in the catalog.`);
     state.product = product;
+    state.sku = product.sku;
     state.file = {
       id: job.source.fileId, versionId: job.source.versionId, name: job.source.name,
     };
@@ -326,7 +372,7 @@ async function onResume(job) {
     else state.step = 2;
     if (!TERMINAL.includes(job.status)) { pollDelay = 3000; pollJob(job.id); }
   } catch (e) {
-    setNotice('error', errorText(e));
+    setNotice('negative', errorText(e));
   } finally {
     state.busy = false;
     render();
@@ -355,315 +401,433 @@ function goTo(step) {
 
 /* ---------- views ---------- */
 
-function renderStepper() {
-  return h('ol', { class: 'ccs-steps' }, STEPS.map((label, i) => h('li', {
-    class: `ccs-step${i === state.step ? ' is-current' : ''}${canEnter(i) ? '' : ' is-locked'}`,
-  }, h('button', {
-    type: 'button',
-    disabled: !canEnter(i),
-    'aria-current': i === state.step ? 'step' : null,
-    onClick: () => goTo(i),
-  }, `${i + 1}. ${label}`))));
+function renderHeader() {
+  return h(
+    'header',
+    { class: 'ccs-header' },
+    h(
+      'div',
+      { class: 'ccs-brand' },
+      h('span', { class: 'ccs-app-icon', 'aria-hidden': 'true' }, icon('magic-wand')),
+      h(
+        'div',
+        {},
+        h('h1', { class: 'ccs-title', text: 'Creative Commerce Studio' }),
+        h('p', { class: 'ccs-subtitle', text: 'Box · Firefly Creative Production · Commerce' }),
+      ),
+    ),
+    state.sdk ? null : alert('notice', null, 'Standalone preview. Open from a Workspace document to connect Box and insert blocks.'),
+  );
 }
 
-function renderSelectionSummary() {
-  if (!state.product) return null;
+function renderTabs() {
+  const tabs = h('sp-tabs', {
+    selected: String(state.step),
+    size: 's',
+    'aria-label': 'Steps',
+    class: 'ccs-tabs',
+    onChange: (e) => {
+      const next = Number(e.target.selected);
+      if (next !== state.step) {
+        if (canEnter(next)) goTo(next);
+        else e.target.selected = String(state.step);
+      }
+    },
+  });
+  STEPS.forEach((label, i) => {
+    tabs.append(h('sp-tab', {
+      label, value: String(i), disabled: !canEnter(i),
+    }));
+  });
+  return tabs;
+}
+
+function renderContext() {
+  const p = state.product;
+  if (!p || state.step === 0) return null; // the Product step shows the full card
   return h(
     'div',
-    { class: 'ccs-summary' },
-    h('span', {}, h('strong', { text: state.product.sku }), ` · ${state.product.name}`),
-    state.file ? h('span', { text: `Source: ${state.file.name}` }) : null,
-    state.job ? h('span', { class: `ccs-badge is-${state.job.status}`, text: state.job.status }) : null,
+    { class: 'ccs-context' },
+    p.image
+      ? h('img', {
+        class: 'ccs-context-thumb', src: p.image, alt: '', width: 40, height: 40,
+      })
+      : h('span', { class: 'ccs-context-thumb is-empty' }, icon('shopping-cart')),
+    h(
+      'div',
+      { class: 'ccs-context-text' },
+      h('p', { class: 'ccs-context-name', text: p.name }),
+      h('p', { class: 'ccs-detail', text: state.file ? `${p.sku} · ${state.file.name}` : p.sku }),
+    ),
+    state.job ? statusLight(state.job.status) : null,
   );
+}
+
+function section(title, description, ...children) {
+  return h(
+    'section',
+    { class: 'ccs-section', 'aria-labelledby': 'ccs-section-title' },
+    h('h2', { class: 'ccs-heading', id: 'ccs-section-title', text: title }),
+    description ? h('p', { class: 'ccs-body', text: description }) : null,
+    ...children,
+  );
+}
+
+function footer(...buttons) {
+  return h('div', { class: 'ccs-footer' }, ...buttons);
 }
 
 function renderProductStep() {
   const p = state.product;
-  return h(
-    'section',
-    { class: 'ccs-panel' },
-    h('h2', { text: 'Choose the product' }),
-    h(
-      'form',
-      { class: 'ccs-row', onSubmit: onLookup },
-      h('label', { for: 'ccs-sku', class: 'ccs-label', text: 'Exact SKU' }),
-      h('input', {
-        id: 'ccs-sku', name: 'sku', required: true, autocomplete: 'off', value: p?.sku || '', placeholder: 'e.g. STIHL-BGA200',
-      }),
-      h('button', { type: 'submit', class: 'ccs-btn', disabled: state.busy }, state.busy ? 'Looking up…' : 'Look up'),
-    ),
-    state.productError ? h('p', { class: 'ccs-error', role: 'alert', text: state.productError }) : null,
-    p ? h(
+  const field = h('sp-textfield', {
+    id: 'ccs-sku',
+    value: state.sku,
+    placeholder: 'e.g. STIHL-BGA200',
+    autocomplete: 'off',
+    invalid: !!state.productError,
+    class: 'ccs-grow',
+    onInput: (e) => { state.sku = e.target.value; },
+    onKeydown: (e) => { if (e.key === 'Enter') onLookup(); },
+  });
+  field.append(icon('search', 'icon'));
+  if (state.productError) field.append(h('sp-help-text', { slot: 'negative-help-text', icon: true, text: state.productError }));
+
+  const children = [
+    h('sp-field-label', { for: 'ccs-sku', text: 'Exact SKU', required: true }),
+    h('div', { class: 'ccs-inline' }, field, button('Look up', {
+      variant: 'primary', treatment: 'outline', pending: state.busy, onClick: onLookup,
+    })),
+  ];
+
+  if (p) {
+    children.push(h(
       'div',
-      { class: 'ccs-product' },
-      p.image ? h('img', {
-        src: p.image, alt: '', width: 96, height: 96, loading: 'lazy',
-      }) : null,
+      { class: 'ccs-card ccs-product' },
+      p.image
+        ? h('img', {
+          src: p.image, alt: '', width: 72, height: 72, loading: 'lazy',
+        })
+        : null,
       h(
         'div',
-        {},
-        h('p', {}, h('strong', { text: p.name })),
-        h('p', { class: 'ccs-muted', text: `${p.sku} · ${p.type.replace('ProductView', '')} · ${p.inStock ? 'in stock' : 'out of stock'}` }),
-        p.path ? h('p', { class: 'ccs-muted', text: `Links to ${p.path}` }) : h('p', { class: 'ccs-error', text: 'This product has no URL key, so it cannot be linked.' }),
+        { class: 'ccs-product-text' },
+        h('p', { class: 'ccs-strong', text: p.name }),
+        h('p', { class: 'ccs-detail', text: `${p.sku} · ${p.type.replace('ProductView', '')} product` }),
+        h('sp-status-light', { variant: p.inStock ? 'positive' : 'notice', size: 's', text: p.inStock ? 'In stock' : 'Out of stock' }),
+        p.path
+          ? h('p', { class: 'ccs-detail', text: `Links to ${p.path}` })
+          : alert('negative', null, 'This product has no URL key, so it cannot be linked.'),
       ),
-    ) : null,
-    h('div', { class: 'ccs-actions' }, h('button', {
-      type: 'button', class: 'ccs-btn primary', disabled: !p?.path, onClick: () => goTo(1),
-    }, 'Next: choose source')),
-    state.recent.length ? renderRecent() : null,
-  );
+    ));
+  }
+
+  children.push(footer(button('Continue', { variant: 'accent', disabled: !p?.path, onClick: () => goTo(1) })));
+
+  if (state.recent.length) {
+    const acc = h('sp-accordion', { size: 's', class: 'ccs-recent' });
+    const item = h('sp-accordion-item', { label: `Recent jobs (${state.recent.length})` });
+    const list = h('ul', { class: 'ccs-list' });
+    state.recent.forEach((job) => {
+      list.append(h(
+        'li',
+        {},
+        h(
+          'div',
+          { class: 'ccs-list-text' },
+          h('p', { class: 'ccs-strong', text: job.sku }),
+          h('p', { class: 'ccs-detail', text: `${job.source?.name || ''} · ${new Date(job.updatedAt).toLocaleString()}` }),
+          statusLight(job.status),
+        ),
+        h('sp-action-button', { size: 's', quiet: true, onClick: () => onResume(job) }, 'Resume'),
+      ));
+    });
+    item.append(list);
+    acc.append(item);
+    children.push(h('sp-divider', { size: 's' }), acc);
+  }
+
+  return section('Choose the product', 'Enter the SKU exactly as it appears in the catalog.', ...children);
 }
 
-function renderRecent() {
-  return h(
-    'details',
-    { class: 'ccs-recent' },
-    h('summary', { text: `Your recent jobs (${state.recent.length})` }),
-    h('ul', {}, state.recent.map((job) => h(
-      'li',
-      {},
-      h('span', { text: `${job.sku} · ${job.source?.name || ''} · ${job.status} · ${new Date(job.updatedAt).toLocaleString()}` }),
-      h('button', { type: 'button', class: 'ccs-btn small', onClick: () => onResume(job) }, 'Resume'),
-    ))),
-  );
+function renderFileTile(entry) {
+  if (entry.type === 'folder') {
+    return h('li', {}, h(
+      'button',
+      {
+        type: 'button',
+        class: 'ccs-tile is-folder',
+        onClick: async () => { await openFolder(entry.id); render(); },
+      },
+      h('span', { class: 'ccs-tile-media' }, icon('folder')),
+      h('span', { class: 'ccs-tile-name', text: entry.name }),
+    ));
+  }
+  const supported = IMAGE_EXT.test(entry.name);
+  const selected = state.file?.id === entry.id;
+  return h('li', {}, h(
+    'button',
+    {
+      type: 'button',
+      class: `ccs-tile${selected ? ' is-selected' : ''}`,
+      disabled: !supported,
+      'aria-pressed': selected ? 'true' : 'false',
+      title: supported ? entry.name : `${entry.name}: only PNG or JPEG packshots are supported`,
+      onClick: () => onSelectFile(entry),
+    },
+    h(
+      'span',
+      { class: 'ccs-tile-media' },
+      entry.thumbnail ? h('img', {
+        src: entry.thumbnail, alt: '', width: 120, height: 120, loading: 'lazy',
+      }) : icon('image'),
+      selected ? h('span', { class: 'ccs-tile-check' }, icon('checkmark-circle')) : null,
+    ),
+    h('span', { class: 'ccs-tile-name', text: entry.name }),
+    supported ? null : h('span', { class: 'ccs-detail', text: 'Unsupported' }),
+  ));
 }
 
 function renderSourceStep() {
-  const panel = h('section', { class: 'ccs-panel' }, h('h2', { text: 'Choose the Box packshot' }));
+  const title = 'Choose the Box packshot';
   if (!state.backendConfigured) {
-    panel.append(h('p', { class: 'ccs-error', text: 'The Creative Commerce Studio backend is not configured for this site. An administrator needs to set creative-commerce-studio → backend-url in the site config.' }));
-    return panel;
+    return section(title, null, alert('notice', 'Backend not configured', 'An administrator needs to set creative-commerce-studio → backend-url in the site config.'));
   }
   if (!state.sdk) {
-    panel.append(h('p', { class: 'ccs-error', text: 'Open this plugin from an Experience Workspace document to connect Box.' }));
-    return panel;
+    return section(title, null, alert('notice', 'Workspace required', 'Open this plugin from an Experience Workspace document to connect Box.'));
   }
-  if (state.box.error) panel.append(h('p', { class: 'ccs-error', role: 'alert', text: state.box.error }));
+  const children = [];
+  if (state.box.error) children.push(alert('negative', null, state.box.error));
   if (!state.box.checked) {
-    panel.append(h('p', { text: 'Checking your Box connection…' }));
-    return panel;
+    children.push(h('div', { class: 'ccs-loading' }, h('sp-progress-circle', { indeterminate: true, size: 's', label: 'Checking Box connection' }), 'Checking your Box connection…'));
+    return section(title, null, ...children);
   }
   if (!state.box.connected) {
-    panel.append(
-      h('p', { text: 'Connect your own Box account. Creative Commerce Studio only reads files from the configured campaign folder and never changes them.' }),
-      h('button', {
-        type: 'button', class: 'ccs-btn primary', disabled: state.busy, onClick: onConnectBox,
-      }, 'Connect Box'),
-    );
-    return panel;
+    children.push(h(
+      'div',
+      { class: 'ccs-empty' },
+      h('span', { class: 'ccs-empty-icon', 'aria-hidden': 'true' }, icon('box')),
+      h('p', { class: 'ccs-strong', text: 'Connect your Box account' }),
+      h('p', { class: 'ccs-body', text: 'Creative Commerce Studio only reads files from the configured campaign folder and never changes them.' }),
+      button('Connect Box', { variant: 'accent', pending: state.busy, onClick: onConnectBox }),
+    ));
+    return section(title, null, ...children);
   }
 
-  panel.append(h(
-    'p',
-    { class: 'ccs-muted' },
-    `Connected as ${state.box.user?.name || state.box.user?.login || 'Box user'} · `,
-    h('button', { type: 'button', class: 'ccs-link', onClick: onDisconnectBox }, 'Disconnect'),
+  children.push(h(
+    'div',
+    { class: 'ccs-row' },
+    h('sp-status-light', { variant: 'positive', size: 's', text: `Connected as ${state.box.user?.name || state.box.user?.login || 'Box user'}` }),
+    h('sp-action-button', {
+      size: 's', quiet: true, disabled: state.busy, onClick: onDisconnectBox,
+    }, 'Disconnect'),
   ));
 
   const { folder } = state;
   if (folder) {
+    const crumb = h('div', { class: 'ccs-row' });
     if (folder.parentId) {
-      panel.append(h('button', { type: 'button', class: 'ccs-link', onClick: async () => { await openFolder(folder.parentId); render(); } }, '← Back'));
+      crumb.append(h('sp-action-button', {
+        size: 's', quiet: true, label: 'Back', onClick: async () => { await openFolder(folder.parentId); render(); },
+      }, icon('chevron-left', 'icon')));
     }
-    panel.append(h('p', {}, h('strong', { text: folder.name })));
-    if (!folder.entries.length) panel.append(h('p', { class: 'ccs-muted', text: 'This folder is empty.' }));
-    const grid = h('ul', { class: 'ccs-files' });
-    folder.entries.forEach((entry) => {
-      if (entry.type === 'folder') {
-        grid.append(h('li', {}, h('button', { type: 'button', class: 'ccs-file is-folder', onClick: async () => { await openFolder(entry.id); render(); } }, h('span', { class: 'ccs-file-icon', text: '📁' }), h('span', { text: entry.name }))));
-        return;
-      }
-      const supported = IMAGE_EXT.test(entry.name);
-      const selected = state.file?.id === entry.id;
-      grid.append(h('li', {}, h(
-        'button',
-        {
-          type: 'button',
-          class: `ccs-file${selected ? ' is-selected' : ''}`,
-          disabled: !supported,
-          'aria-pressed': selected ? 'true' : 'false',
-          title: supported ? entry.name : `${entry.name} — only PNG or JPEG packshots are supported`,
-          onClick: () => onSelectFile(entry),
-        },
-        entry.thumbnail ? h('img', {
-          src: entry.thumbnail, alt: '', width: 120, height: 120, loading: 'lazy',
-        }) : h('span', { class: 'ccs-file-icon', text: '🖼' }),
-        h('span', { text: entry.name }),
-      )));
-    });
-    panel.append(grid);
+    crumb.append(h('span', {}, icon('folder')), h('p', { class: 'ccs-strong', text: folder.name }));
+    children.push(crumb);
+    if (!folder.entries.length) children.push(h('p', { class: 'ccs-detail', text: 'This folder is empty.' }));
+    children.push(h('ul', { class: 'ccs-tiles' }, folder.entries.map(renderFileTile)));
   }
 
   if (state.file) {
-    panel.append(h(
-      'label',
-      { class: 'ccs-confirm' },
-      h('input', {
-        type: 'checkbox',
+    children.push(h(
+      'div',
+      { class: 'ccs-card is-subtle' },
+      h('sp-checkbox', {
         checked: state.confirmed,
         onChange: (e) => { state.confirmed = e.target.checked; render(); },
-      }),
-      h('span', { text: `I confirm “${state.file.name}” (version ${state.file.versionId}) shows ${state.product.name} (${state.product.sku}) and I am authorized to use it.` }),
+      }, `I confirm “${state.file.name}” (version ${state.file.versionId}) shows ${state.product.name} (${state.product.sku}) and I am authorized to use it.`),
     ));
   }
-  panel.append(h('div', { class: 'ccs-actions' }, h('button', {
-    type: 'button', class: 'ccs-btn primary', disabled: !canEnter(2), onClick: () => goTo(2),
-  }, 'Next: prepare')));
-  return panel;
+  children.push(footer(
+    button('Back', { variant: 'secondary', treatment: 'outline', onClick: () => goTo(0) }),
+    button('Continue', { variant: 'accent', disabled: !canEnter(2), onClick: () => goTo(2) }),
+  ));
+  return section(title, null, ...children);
 }
 
 function renderPrepareStep() {
   const { job } = state;
   const running = job && !TERMINAL.includes(job.status);
-  const panel = h(
-    'section',
-    { class: 'ccs-panel' },
-    h('h2', { text: 'Prepare placements with Firefly Creative Production' }),
-    h('p', { text: 'Runs the published product-packshot workflow on the exact Box file version you selected: background removal, then desktop (16:9) and mobile (4:5) layouts.' }),
-  );
+  const children = [
+    h(
+      'ol',
+      { class: 'ccs-recipe' },
+      h('li', { text: 'Remove background' }),
+      h('li', { text: 'Place in desktop layout (16:9)' }),
+      h('li', { text: 'Place in mobile layout (4:5)' }),
+    ),
+  ];
   if (job && !jobMatchesSelection(job)) {
-    panel.append(h('p', { class: 'ccs-error', text: 'The product or source changed since this job was started. Submit a new job for the current selection.' }));
+    children.push(alert('notice', 'Selection changed', 'The product or source changed since this job started. Run production again for the current selection.'));
   }
   if (job) {
-    panel.append(h(
-      'dl',
-      { class: 'ccs-job' },
-      h('dt', { text: 'Job' }),
-      h('dd', { text: job.id }),
-      h('dt', { text: 'Status' }),
-      h('dd', {}, h('span', { class: `ccs-badge is-${job.status}`, text: job.status })),
-      job.message ? h('dt', { text: 'Detail' }) : null,
-      job.message ? h('dd', { text: job.message }) : null,
+    children.push(h(
+      'div',
+      { class: 'ccs-card ccs-job' },
+      h(
+        'div',
+        { class: 'ccs-row' },
+        running ? h('sp-progress-circle', { indeterminate: true, size: 's', label: 'Production running' }) : null,
+        statusLight(job.status),
+      ),
+      job.message ? h('p', { class: 'ccs-body', text: job.message }) : null,
+      h('p', { class: 'ccs-detail', text: `Job ${job.id}` }),
     ));
   }
-  if (state.jobError) panel.append(h('p', { class: 'ccs-error', role: 'alert', text: state.jobError }));
-  const actions = h('div', { class: 'ccs-actions' });
+  if (state.jobError) children.push(alert('negative', null, state.jobError));
+
+  const buttons = [button('Back', { variant: 'secondary', treatment: 'outline', onClick: () => goTo(1) })];
   if (!job || RERUNNABLE.includes(job.status) || !jobMatchesSelection(job)) {
     const uncertain = job?.status === 'submit-uncertain' && jobMatchesSelection(job);
-    actions.append(h('button', {
-      type: 'button',
-      class: 'ccs-btn primary',
-      disabled: state.busy || !state.confirmed,
+    buttons.push(button(job ? 'Run again' : 'Run production', {
+      variant: 'accent',
+      iconName: 'magic-wand',
+      pending: state.busy,
+      disabled: !state.confirmed,
       onClick: () => {
         // eslint-disable-next-line no-alert
         if (uncertain && !window.confirm('The previous run may still be processing in Firefly. Start another (possibly billable) run?')) return;
         onSubmitJob();
       },
-    }, job ? 'Run again' : 'Run production'));
+    }));
   }
   if (running) {
-    actions.append(h('button', { type: 'button', class: 'ccs-btn', onClick: () => { pollDelay = 3000; pollJob(job.id); } }, 'Refresh status'));
+    buttons.push(button('Refresh', {
+      variant: 'secondary', iconName: 'refresh', onClick: () => { pollDelay = 3000; pollJob(job.id); },
+    }));
   }
-  if (canEnter(3)) {
-    actions.append(h('button', { type: 'button', class: 'ccs-btn primary', onClick: () => goTo(3) }, 'Next: review'));
-  }
-  panel.append(actions);
-  return panel;
+  if (canEnter(3)) buttons.push(button('Continue', { variant: 'accent', onClick: () => goTo(3) }));
+  children.push(footer(...buttons));
+
+  return section('Prepare placements', 'Runs the published Firefly Creative Production workflow on the exact Box file version you selected.', ...children);
 }
 
-function field(label, key, opts = {}) {
+function textField(label, key, { multiline = false, max = 200, help } = {}) {
   const id = `ccs-${key}`;
-  const input = opts.multiline
-    ? h('textarea', { id, rows: 3, value: state.copy[key] })
-    : h('input', { id, value: state.copy[key], maxlength: opts.max || 200 });
-  input.addEventListener('input', (e) => { state.copy[key] = e.target.value; });
-  return h('div', { class: 'ccs-field' }, h('label', { for: id, text: label }), input, opts.hint ? h('small', { class: 'ccs-muted', text: opts.hint }) : null);
+  const field = h('sp-textfield', {
+    id,
+    value: state.copy[key],
+    multiline,
+    rows: multiline ? 3 : undefined,
+    maxlength: max,
+    class: 'ccs-grow',
+    onInput: (e) => { state.copy[key] = e.target.value; },
+  });
+  if (help) field.append(h('sp-help-text', { slot: 'help-text', text: help }));
+  return h('div', { class: 'ccs-field' }, h('sp-field-label', { for: id, text: label }), field);
 }
 
 function renderReviewStep() {
   const { job } = state;
   const out = job.outputs || {};
   const accepted = job.status === 'accepted';
-  const preview = (o, label) => h('figure', { class: 'ccs-preview' }, o ? h('img', { src: accepted ? o.deliveryUrl : o.previewUrl, alt: `${label} output` }) : h('p', { class: 'ccs-error', text: `No ${label.toLowerCase()} output.` }), h('figcaption', { text: o ? `${label} · ${o.width || '?'}×${o.height || '?'}` : label }));
-  const panel = h(
-    'section',
-    { class: 'ccs-panel' },
-    h('h2', { text: 'Review placements and copy' }),
-    h('p', { class: 'ccs-muted', text: 'Check that the whole product is visible, edges are clean and nothing is distorted. Accepting copies both images to Product Visuals so the page never depends on expiring links.' }),
-    h('div', { class: 'ccs-previews' }, preview(out.desktop, 'Desktop'), preview(out.mobile, 'Mobile')),
-    field('Headline', 'headline', { max: 120 }),
-    field('Description', 'description', { multiline: true }),
-    field('CTA label', 'ctaLabel', { max: 40 }),
-    field('Image alt text', 'imageAlt', { max: 200, hint: 'Describe the product image for screen readers.' }),
-    h(
-      'fieldset',
-      { class: 'ccs-field' },
-      h('legend', { text: 'Presentation' }),
-      ...['static', 'animated'].map((v) => h(
-        'label',
-        { class: 'ccs-radio' },
-        h('input', {
-          type: 'radio', name: 'presentation', value: v, checked: state.copy.presentation === v, onChange: () => { state.copy.presentation = v; },
-        }),
-        v === 'static' ? 'Static' : 'Animated entrance (respects reduced motion)',
-      )),
-    ),
+  const preview = (o, label, cls) => h(
+    'figure',
+    { class: `ccs-preview ${cls}` },
+    o
+      ? h('img', { src: accepted ? o.deliveryUrl : o.previewUrl, alt: `${label} output` })
+      : h('div', { class: 'ccs-preview-missing' }, icon('image')),
+    h('figcaption', { class: 'ccs-detail', text: o ? `${label} · ${o.width || '?'}×${o.height || '?'}` : `No ${label.toLowerCase()} output` }),
   );
-  if (state.jobError) panel.append(h('p', { class: 'ccs-error', role: 'alert', text: state.jobError }));
-  if (job.status === 'delivery-failed') panel.append(h('p', { class: 'ccs-error', text: `Delivery to Product Visuals failed: ${job.message || 'unknown error'}. The rendered images are kept; you can retry.` }));
-  panel.append(h(
-    'div',
-    { class: 'ccs-actions' },
+
+  const radios = h('sp-radio-group', {
+    id: 'ccs-presentation',
+    selected: state.copy.presentation,
+    name: 'presentation',
+    onChange: (e) => { state.copy.presentation = e.target.selected; },
+  });
+  radios.append(
+    h('sp-radio', { value: 'static' }, 'Static'),
+    h('sp-radio', { value: 'animated' }, 'Animated entrance'),
+  );
+
+  const children = [
+    h('div', { class: 'ccs-previews' }, preview(out.desktop, 'Desktop', 'is-desktop'), preview(out.mobile, 'Mobile', 'is-mobile')),
+    h('p', { class: 'ccs-detail', text: 'Check that the whole product is visible, edges are clean and nothing is distorted.' }),
+    h('sp-divider', { size: 's' }),
+    textField('Headline', 'headline', { max: 120 }),
+    textField('Description', 'description', { multiline: true, max: 400 }),
+    textField('CTA label', 'ctaLabel', { max: 40 }),
+    textField('Image alt text', 'imageAlt', { max: 200, help: 'Describe the product image for screen readers.' }),
+    h(
+      'div',
+      { class: 'ccs-field' },
+      h('sp-field-label', { for: 'ccs-presentation', text: 'Presentation' }),
+      radios,
+      h('sp-help-text', { text: 'The animation plays once and is skipped for visitors who prefer reduced motion.' }),
+    ),
+  ];
+  if (state.jobError) children.push(alert('negative', null, state.jobError));
+  if (job.status === 'delivery-failed') {
+    children.push(alert('negative', 'Delivery to Product Visuals failed', `${job.message || 'Unknown error.'} The rendered images are kept; you can retry.`));
+  }
+  children.push(footer(
+    button('Back', { variant: 'secondary', treatment: 'outline', onClick: () => goTo(2) }),
     accepted
-      ? h('button', { type: 'button', class: 'ccs-btn primary', onClick: () => goTo(4) }, 'Next: insert')
-      : h('button', {
-        type: 'button', class: 'ccs-btn primary', disabled: state.busy, onClick: onAccept,
-      }, state.busy ? 'Delivering…' : 'Accept and deliver'),
+      ? button('Continue', { variant: 'accent', onClick: () => goTo(4) })
+      : button(job.status === 'delivery-failed' ? 'Retry delivery' : 'Accept and deliver', {
+        variant: 'accent', iconName: 'upload-to-cloud', pending: state.busy, onClick: onAccept,
+      }),
   ));
-  return panel;
+  return section('Review placements and copy', 'Accepting copies both images to Product Visuals, so the page never depends on expiring links.', ...children);
 }
 
 function renderInsertStep() {
   const data = spotlightData();
-  const panel = h(
-    'section',
-    { class: 'ccs-panel' },
-    h('h2', { text: 'Insert into the page' }),
-    h('p', { text: 'Inserts a Creative Product Spotlight block at your cursor. Nothing is published; save and preview the page as usual.' }),
+  const row = (k, v, cls) => [h('dt', { text: k }), h('dd', { class: cls, text: v || '—' })];
+  const children = [
     h(
       'dl',
-      { class: 'ccs-job' },
-      h('dt', { text: 'SKU' }),
-      h('dd', { text: data.sku }),
-      h('dt', { text: 'Headline' }),
-      h('dd', { text: data.headline || '—' }),
-      h('dt', { text: 'Presentation' }),
-      h('dd', { text: data.presentation }),
-      h('dt', { text: 'Desktop' }),
-      h('dd', { class: 'ccs-url', text: data.desktopImage || '—' }),
-      h('dt', { text: 'Mobile' }),
-      h('dd', { class: 'ccs-url', text: data.mobileImage || '—' }),
+      { class: 'ccs-card ccs-summary' },
+      ...row('SKU', data.sku),
+      ...row('Headline', data.headline),
+      ...row('CTA', data.ctaLabel),
+      ...row('Presentation', data.presentation === 'animated' ? 'Animated entrance' : 'Static'),
+      ...row('Desktop', data.desktopImage, 'ccs-url'),
+      ...row('Mobile', data.mobileImage, 'ccs-url'),
     ),
-  );
-  if (state.notice) panel.append(h('p', { class: state.notice.type === 'error' ? 'ccs-error' : 'ccs-success', role: 'status', text: state.notice.text }));
-  panel.append(h(
-    'div',
-    { class: 'ccs-actions' },
-    h('button', { type: 'button', class: 'ccs-btn', onClick: () => goTo(3) }, 'Edit copy'),
-    h('button', {
-      type: 'button', class: 'ccs-btn primary', disabled: !state.sdk, onClick: onInsert,
-    }, 'Insert block'),
-    state.sdk?.actions?.closeLibrary ? h('button', { type: 'button', class: 'ccs-btn', onClick: () => state.sdk.actions.closeLibrary() }, 'Close') : null,
+  ];
+  if (state.notice) children.push(alert(state.notice.type, null, state.notice.text));
+  children.push(footer(
+    button('Edit copy', { variant: 'secondary', treatment: 'outline', onClick: () => goTo(3) }),
+    button('Insert into page', {
+      variant: 'accent', disabled: !state.sdk, onClick: onInsert,
+    }),
+    state.sdk?.actions?.closeLibrary
+      ? button('Close', { variant: 'secondary', treatment: 'outline', onClick: () => state.sdk.actions.closeLibrary() })
+      : null,
   ));
-  return panel;
+  return section('Insert into the page', 'Adds a Creative Product Spotlight block at your cursor. Nothing is published; save and preview the page as usual.', ...children);
 }
 
 const VIEWS = [
   renderProductStep, renderSourceStep, renderPrepareStep, renderReviewStep, renderInsertStep,
 ];
 
-function render() {
+const theme = h('sp-theme', {
+  system: 'spectrum-two', color: 'light', scale: 'medium', class: 'ccs-theme',
+});
+
+render = () => {
   const active = document.activeElement?.id;
-  const view = VIEWS[state.step]();
-  const header = h(
-    'header',
-    { class: 'ccs-header' },
-    h('h1', { text: 'Creative Commerce Studio' }),
-    state.sdk ? null : h('p', { class: 'ccs-warning', text: 'Standalone preview: open from a Workspace document to connect Box and insert blocks.' }),
-  );
-  root.replaceChildren(header, renderStepper(), renderSelectionSummary() || '', view);
+  theme.replaceChildren(h(
+    'div',
+    { class: 'ccs-app' },
+    renderHeader(),
+    renderTabs(),
+    renderContext(),
+    VIEWS[state.step](),
+  ));
   if (active) document.getElementById(active)?.focus();
-}
+};
 
 /* ---------- boot ---------- */
 
@@ -679,6 +843,7 @@ async function loadSdk() {
 let currentToken = null;
 
 async function init() {
+  root.replaceChildren(theme);
   state.sdk = await loadSdk();
   currentToken = state.sdk?.token || null;
   // Workspace pushes refreshed IMS tokens to the frame; always use the latest one.
