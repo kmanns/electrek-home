@@ -1,0 +1,101 @@
+/* Creative Product Spotlight — Creative Commerce Studio */
+
+.creative-product-spotlight-container .creative-product-spotlight-wrapper {
+  max-width: 1264px;
+}
+
+.creative-product-spotlight {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--spacing-medium, 24px);
+  align-items: center;
+  background: var(--color-cream-200, #ede6d5);
+  overflow: hidden;
+}
+
+.creative-product-spotlight-media {
+  line-height: 0;
+}
+
+.creative-product-spotlight-media img {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 4 / 5;
+  object-fit: cover;
+}
+
+.creative-product-spotlight-content {
+  padding: 0 var(--spacing-medium, 24px) var(--spacing-big, 32px);
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.creative-product-spotlight-content h2 {
+  margin: 0 0 var(--spacing-small, 16px);
+  color: var(--color-blue-primary, #041e42);
+}
+
+.creative-product-spotlight-description p {
+  margin: 0 0 var(--spacing-small, 16px);
+  color: var(--color-text, #16181d);
+}
+
+.creative-product-spotlight-cta {
+  margin: var(--spacing-small, 16px) 0 0;
+}
+
+.creative-product-spotlight-cta[hidden] {
+  display: none;
+}
+
+.creative-product-spotlight.no-media .creative-product-spotlight-content {
+  padding-top: var(--spacing-big, 32px);
+}
+
+@media (min-width: 900px) {
+  .creative-product-spotlight {
+    grid-template-columns: 3fr 2fr;
+    gap: 0;
+  }
+
+  .creative-product-spotlight.no-media {
+    grid-template-columns: 1fr;
+  }
+
+  .creative-product-spotlight-media img {
+    aspect-ratio: 16 / 9;
+  }
+
+  .creative-product-spotlight-content {
+    padding: var(--spacing-big, 32px) var(--spacing-xbig, 48px);
+  }
+}
+
+/* Animated presentation: one short entrance, then a stable composition.
+   Content is only hidden while JS has marked the block as pending, so it stays
+   visible if scripts or IntersectionObserver are unavailable. */
+@media (prefers-reduced-motion: no-preference) {
+  .creative-product-spotlight.animated .creative-product-spotlight-media img,
+  .creative-product-spotlight.animated .creative-product-spotlight-content > * {
+    transition: opacity 600ms ease-out, transform 600ms ease-out;
+  }
+
+  .creative-product-spotlight.animated.is-pending .creative-product-spotlight-media img {
+    opacity: 0;
+    transform: scale(1.04);
+  }
+
+  .creative-product-spotlight.animated.is-pending .creative-product-spotlight-content > * {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+
+  .creative-product-spotlight.animated .creative-product-spotlight-content > :nth-child(2) {
+    transition-delay: 120ms;
+  }
+
+  .creative-product-spotlight.animated .creative-product-spotlight-content > :nth-child(3) {
+    transition-delay: 240ms;
+  }
+}

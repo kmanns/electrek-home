@@ -1,0 +1,26 @@
+{
+  "name": "creative-commerce-studio-backend",
+  "version": "0.1.0",
+  "private": true,
+  "description": "App Builder actions for Creative Commerce Studio: Box OAuth + source retrieval, Firefly Creative Production jobs, Product Visuals (AEM Assets) delivery.",
+  "license": "Apache-2.0",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "test": "jest --ci"
+  },
+  "dependencies": {
+    "@adobe/aio-lib-files": "^4.1.4",
+    "@adobe/aio-lib-state": "^5.4.0"
+  },
+  "devDependencies": {
+    "jest": "^29.7.0"
+  },
+  "jest": {
+    "testEnvironment": "node",
+    "testMatch": [
+      "<rootDir>/test/**/*.test.js"
+    ]
+  }
+}
