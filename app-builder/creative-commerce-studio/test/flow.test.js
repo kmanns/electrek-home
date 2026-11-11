@@ -190,3 +190,46 @@ describe('jobs', () => {
     expect(failed.outputs.desktop.previewUrl).toMatch(/^https:/);
   });
 });
+
+describe('Box thumbnails', () => {
+  test('pending representation is triggered, retried and returned as a data URL', async () => {
+    const base = world();
+    let polls = 0;
+    const f = h.router([
+      ['GET', 'https://api.box.com/2.0/files/555?fields=representations', (u, init) => {
+        expect(init.headers['x-rep-hints']).toBe('[jpg?dimensions=320x320]');
+        polls += 1;
+        const state = polls === 1 ? 'none' : 'success';
+        return { json: { representations: { entries: [{ representation: 'jpg', status: { state }, info: { url: 'https://api.box.com/2.0/internal_files/555/versions/777/representations/jpg_thumb_320x320' }, content: { url_template: 'https://public.boxcloud.com/api/2.0/internal_files/555/versions/777/representations/jpg_thumb_320x320/content/{+asset_path}' } }] } } };
+      }],
+      ['GET', 'https://api.box.com/2.0/internal_files/555/', () => ({ json: {} })],
+      ['GET', 'https://public.boxcloud.com/api/2.0/internal_files/555/', (u, init) => {
+        expect(init.headers.Authorization).toMatch(/^Bearer /);
+        return { body: Buffer.from([0xff, 0xd8, 0xff, 0xe0, 1, 2, 3]) };
+      }],
+    ]);
+    const combined = async (input, init) => {
+      try { return await f(input, init); } catch (e) { return base(input, init); }
+    };
+    await connect(alice, combined);
+    const thumb = await box._thumbnail(P, alice, '555', combined, 1);
+    expect(thumb).toMatch(/^data:image\/jpeg;base64,/);
+    expect(polls).toBe(2);
+    expect(f.calls.some((c) => c.url.includes('/representations/jpg_thumb_320x320') && !c.url.includes('/content/'))).toBe(true);
+  });
+
+  test('refuses representation URLs outside Box and falls back to the legacy endpoint', async () => {
+    const base = world();
+    const f = h.router([
+      ['GET', 'https://api.box.com/2.0/files/555?fields=representations', () => ({ json: { representations: { entries: [{ representation: 'jpg', status: { state: 'success' }, content: { url_template: 'https://evil.example/steal/{+asset_path}' } }] } } })],
+      ['GET', 'https://api.box.com/2.0/files/555/thumbnail.png', () => ({ body: h.png(160, 160) })],
+    ]);
+    const combined = async (input, init) => {
+      try { return await f(input, init); } catch (e) { return base(input, init); }
+    };
+    await connect(alice, combined);
+    const thumb = await box._thumbnail(P, alice, '555', combined, 1);
+    expect(thumb).toMatch(/^data:image\/png;base64,/);
+    expect(f.calls.some((c) => c.url.startsWith('https://evil.example'))).toBe(false);
+  });
+});

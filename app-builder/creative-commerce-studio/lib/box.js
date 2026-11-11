@@ -158,15 +158,16 @@ async function disconnect(params, user, fetchImpl = fetch) {
 
 /* ---------- API ---------- */
 
-async function api(params, user, path, fetchImpl = fetch, { retried = false } = {}) {
+async function api(params, user, path, fetchImpl = fetch, { retried = false, headers = {} } = {}) {
   const token = await accessToken(params, user, fetchImpl);
-  const res = await fetchImpl(`${API}${path}`, { headers: { Authorization: `Bearer ${token}` } });
+  const url = path.startsWith('https://') ? path : `${API}${path}`;
+  const res = await fetchImpl(url, { headers: { ...headers, Authorization: `Bearer ${token}` } });
   if (res.status === 401 && !retried) {
     const conn = await readConnection(params, user);
     if (conn) {
       conn.tokens.expiresAt = 0;
       await doRefresh(params, user, conn, fetchImpl);
-      return api(params, user, path, fetchImpl, { retried: true });
+      return api(params, user, path, fetchImpl, { retried: true, headers });
     }
   }
   if (res.status === 401) throw new AppError(401, 'box-reauth', 'Your Box connection expired or was revoked. Reconnect Box.');
@@ -185,13 +186,62 @@ function assertAllowed(params, item) {
   if (!inTree) throw new AppError(403, 'box-folder-not-allowed', 'Only the configured campaign folder can be browsed.');
 }
 
-async function thumbnail(params, user, fileId, fetchImpl) {
+const THUMB_MAX_BYTES = 150 * 1024;
+const THUMB_HINT = '[jpg?dimensions=320x320]';
+const BOX_CONTENT_HOST = /^https:\/\/([\w-]+\.)*(boxcloud\.com|box\.com)\//;
+const sleep = (ms) => new Promise((r) => { setTimeout(r, ms); });
+
+function dataUrl(buf, type) {
+  if (!buf.length || buf.length > THUMB_MAX_BYTES) return null;
+  return `data:${type};base64,${buf.toString('base64')}`;
+}
+
+/**
+ * Current Box method: Representations API. New uploads are processed
+ * asynchronously, so a pending/none state triggers generation and is retried briefly.
+ */
+async function representationThumbnail(params, user, fileId, fetchImpl, waitMs) {
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    // eslint-disable-next-line no-await-in-loop
+    const body = await (await api(params, user, `/files/${fileId}?fields=representations`, fetchImpl, { headers: { 'x-rep-hints': THUMB_HINT } })).json();
+    const rep = body.representations?.entries?.find((r) => r.representation === 'jpg');
+    if (!rep) return null;
+    const state = rep.status?.state;
+    if (state === 'success' || state === 'viewable') {
+      const url = rep.content?.url_template?.replace('{+asset_path}', '');
+      if (!url || !BOX_CONTENT_HOST.test(url)) return null;
+      // eslint-disable-next-line no-await-in-loop
+      const res = await api(params, user, url, fetchImpl);
+      if (res.status !== 200) return null;
+      // eslint-disable-next-line no-await-in-loop
+      return dataUrl(Buffer.from(await res.arrayBuffer()), 'image/jpeg');
+    }
+    if (state === 'error') return null;
+    if (state === 'none' && rep.info?.url && BOX_CONTENT_HOST.test(rep.info.url)) {
+      // Asking for the representation info starts generation.
+      // eslint-disable-next-line no-await-in-loop
+      await api(params, user, rep.info.url, fetchImpl).catch(() => {});
+    }
+    // eslint-disable-next-line no-await-in-loop
+    await sleep(waitMs);
+  }
+  return null;
+}
+
+/** Legacy thumbnail endpoint: 200 = image, 202 = still generating. */
+async function legacyThumbnail(params, user, fileId, fetchImpl) {
+  const res = await api(params, user, `/files/${fileId}/thumbnail.png?min_height=160&min_width=160`, fetchImpl);
+  if (res.status !== 200) return null;
+  return dataUrl(Buffer.from(await res.arrayBuffer()), 'image/png');
+}
+
+async function thumbnail(params, user, fileId, fetchImpl, waitMs = 1200) {
   try {
-    const res = await api(params, user, `/files/${fileId}/thumbnail.png?min_height=160&min_width=160`, fetchImpl);
-    if (res.status !== 200) return null;
-    const buf = Buffer.from(await res.arrayBuffer());
-    if (buf.length > 120 * 1024) return null;
-    return `data:image/png;base64,${buf.toString('base64')}`;
+    const rep = await representationThumbnail(params, user, fileId, fetchImpl, waitMs);
+    if (rep) return rep;
+  } catch (e) { /* fall through to legacy */ }
+  try {
+    return await legacyThumbnail(params, user, fileId, fetchImpl);
   } catch (e) {
     return null;
   }
@@ -250,4 +300,5 @@ async function downloadVersion(params, user, fileId, versionId, fetchImpl = fetc
 
 module.exports = {
   startAuth, completeAuth, status, disconnect, listFolder, downloadVersion, accessToken, assertAllowed,
+  _thumbnail: thumbnail,
 };
