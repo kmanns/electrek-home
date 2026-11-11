@@ -55,10 +55,12 @@ Follow [workflows/README.md](workflows/README.md): build and publish the workflo
 
 ```bash
 cd app-builder/creative-commerce-studio
-cp .env.example .env        # fill in values (see comments in the file)
+npm install -g @adobe/aio-cli
+aio login
+aio app use --global        # or: aio app use <downloaded workspace JSON>; choose "merge" for .env
+# then append the variables from .env.example to the .env that aio created (keep the AIO_ lines)
 npm install
 npm test
-aio login && aio app use    # select your org / project / workspace
 aio app deploy
 ```
 
@@ -72,7 +74,7 @@ In the site's `config.json` (`public.default`):
 "creative-commerce-studio": { "backend-url": "https://<namespace>.adobeioruntime.net/api/v1/web/creative-commerce-studio" }
 ```
 
-The plugin reads the URL only from the site config, never from its own URL, so the author's token can only go to the configured host. Add every origin that loads the plugin (site preview/live hosts and `https://da.live`) to `ALLOWED_ORIGINS`.
+The plugin reads the URL only from the site config, never from its own URL, so the author's token can only go to the configured host. Add every origin that loads the plugin to `ALLOWED_ORIGINS`. Experience Workspace loads library plugins through its preview proxy, so inside Workspace the plugin runs on `https://<branch>--<site>--<org>.preview.da.live` (for example `https://main--electrek-home--kmanns.preview.da.live`), not on the `.aem.page` host. List that origin, `https://da.live`, and the site preview/live hosts. If you register the plugin with a `ref` (branch), add that branch's `preview.da.live` origin too.
 
 ## 6. Register the plugin in Experience Workspace
 
@@ -109,7 +111,7 @@ For local development, use `ref=local`. Workspace then loads the plugin from `ht
 | Symptom | Cause / fix |
 |---------|-------------|
 | "backend is not configured" | Set `creative-commerce-studio.backend-url` in the site config |
-| 403 `origin-not-allowed` | Add the plugin's origin to `ALLOWED_ORIGINS` and redeploy |
+| 403 `origin-not-allowed`, or "The backend could not be reached" in Workspace while the backend is up | The plugin's origin isn't in `ALLOWED_ORIGINS`. In Workspace that is the `…preview.da.live` proxy origin. Add it and run `aio app deploy` |
 | "token was not issued to Experience Workspace" | Add the Workspace client ID to `IMS_ALLOWED_CLIENT_IDS` |
 | Box popup closes but stays disconnected | Redirect URI mismatch or the enterprise hasn't authorized the app. Check the `box-auth-callback` logs (`aio app logs`) |
 | `box-folder-not-allowed` | The file is outside `BOX_ALLOWED_FOLDER_ID` |
