@@ -42,14 +42,13 @@ const state = {
   sku: '',
   product: null,
   productError: null,
-  box: {
-    checked: false, connected: false, user: null, error: null,
-  },
+  sources: { checked: false, list: [], error: null }, // [{ id, label, connected, user }]
+  provider: null, // selected file storage provider id (box | gdrive)
   firefly: {
     checked: false, connected: false, mode: null, error: null,
   },
   folder: null, // { id, name, parentId, entries: [] }
-  file: null, // { id, name, versionId, size, thumbnail }
+  file: null, // { provider, id, name, versionId, size, thumbnail }
   confirmed: false,
   job: null,
   jobError: null,
@@ -116,6 +115,9 @@ function errorText(err) {
   if (err instanceof BackendError && err.code === 'box-reauth') {
     return 'Your Box connection expired or was revoked. Reconnect Box to continue.';
   }
+  if (err instanceof BackendError && err.code === 'gdrive-reauth') {
+    return 'Your Google Drive connection expired or was revoked. Reconnect Google Drive to continue.';
+  }
   if (err instanceof BackendError && err.code === 'firefly-reauth') {
     return 'Connect Firefly (again) to run production.';
   }
@@ -135,6 +137,7 @@ function setNotice(type, text) {
 function jobMatchesSelection(job = state.job) {
   return !!job && !!state.product && !!state.file
     && job.sku === state.product.sku
+    && (job.source?.provider || 'box') === state.file.provider
     && job.source?.fileId === state.file.id
     && job.source?.versionId === state.file.versionId;
 }
@@ -173,30 +176,62 @@ async function onLookup() {
   }
 }
 
+const SOURCE_ICONS = { box: 'box', gdrive: 'folder' };
+
+function currentSource() {
+  return state.sources.list.find((p) => p.id === state.provider) || null;
+}
+
 async function openFolder(folderId) {
+  const { provider } = state;
+  if (!provider) return;
   try {
-    const listing = await state.backend.boxFiles(folderId);
+    const listing = await state.backend.sourceFiles(provider, folderId);
+    if (state.provider !== provider) return; // author switched provider meanwhile
     state.folder = { ...listing.folder, entries: listing.entries || [] };
-    state.box.error = null;
+    state.sources.error = null;
   } catch (e) {
-    if (e.code === 'box-reauth') state.box.connected = false;
-    state.box.error = errorText(e);
+    if (/-reauth$/.test(e.code || '') && currentSource()) currentSource().connected = false;
+    state.sources.error = errorText(e);
   }
 }
 
-async function refreshBox() {
+async function refreshSources() {
   if (!state.backendConfigured) return;
+  let list;
   try {
-    const status = await state.backend.boxStatus();
-    state.box = {
-      checked: true, connected: !!status.connected, user: status.user || null, error: null,
-    };
-    if (status.connected && !state.folder) await openFolder(null);
+    const { providers = [] } = await state.backend.sourcesStatus();
+    list = providers.filter((p) => p.configured);
   } catch (e) {
-    state.box = {
-      checked: true, connected: false, user: null, error: errorText(e),
-    };
+    // Older backends have no sources-status: fall back to Box only.
+    try {
+      const status = await state.backend.boxStatus();
+      list = [{
+        id: 'box', label: 'Box', connected: !!status.connected, user: status.user || null,
+      }];
+    } catch (err) {
+      state.sources = { checked: true, list: [], error: errorText(err) };
+      return;
+    }
   }
+  state.sources = {
+    checked: true, list, error: list.length ? null : 'No file storage is set up for this site yet.',
+  };
+  if (!list.some((p) => p.id === state.provider)) {
+    state.provider = (list.find((p) => p.connected) || list[0])?.id || null;
+    state.folder = null;
+  }
+  if (currentSource()?.connected && !state.folder) await openFolder(null);
+}
+
+function onSwitchProvider(id) {
+  if (id === state.provider) return;
+  state.provider = id;
+  state.folder = null;
+  resetFrom(0);
+  state.sources.error = null;
+  render();
+  if (currentSource()?.connected) openFolder(null).then(render);
 }
 
 /**
@@ -236,15 +271,17 @@ async function confirmConnected(refresh, isConnected) {
   }
 }
 
-async function onConnectBox() {
+async function onConnectSource() {
+  const source = currentSource();
+  if (!source) return;
   state.busy = true;
   render();
   try {
-    const { authorizeUrl } = await state.backend.boxAuthStart();
-    await signInPopup(authorizeUrl, 'box', 'Box');
-    await confirmConnected(refreshBox, () => state.box.connected);
+    const { authorizeUrl } = await state.backend.sourceAuthStart(source.id);
+    await signInPopup(authorizeUrl, source.id, source.label);
+    await confirmConnected(refreshSources, () => !!currentSource()?.connected);
   } catch (e) {
-    state.box.error = errorText(e);
+    state.sources.error = errorText(e);
   } finally {
     state.busy = false;
     render();
@@ -297,15 +334,16 @@ async function onDisconnectFirefly() {
   render();
 }
 
-async function onDisconnectBox() {
+async function onDisconnectSource() {
+  const source = currentSource();
+  if (!source) return;
   state.busy = true;
   render();
   try {
-    await state.backend.boxDisconnect();
+    await state.backend.sourceDisconnect(source.id);
   } catch (e) { /* show disconnected either way */ }
-  state.box = {
-    checked: true, connected: false, user: null, error: null,
-  };
+  source.connected = false;
+  source.user = null;
   state.folder = null;
   resetFrom(0);
   state.busy = false;
@@ -314,7 +352,7 @@ async function onDisconnectBox() {
 
 function onSelectFile(entry) {
   if (state.file?.id !== entry.id || state.file?.versionId !== entry.versionId) resetFrom(1);
-  state.file = entry;
+  state.file = { ...entry, provider: state.provider };
   render();
 }
 
@@ -361,7 +399,10 @@ async function onSubmitJob() {
       sku: state.product.sku,
       productName: state.product.name,
       source: {
-        provider: 'box', fileId: state.file.id, versionId: state.file.versionId, name: state.file.name,
+        provider: state.file.provider,
+        fileId: state.file.id,
+        versionId: state.file.versionId,
+        name: state.file.name,
       },
       associationConfirmed: true,
     });
@@ -437,8 +478,9 @@ async function onResume(job) {
     state.product = product;
     state.sku = product.sku;
     state.file = {
-      id: job.source.fileId, versionId: job.source.versionId, name: job.source.name,
+      provider: job.source.provider || 'box', id: job.source.fileId, versionId: job.source.versionId, name: job.source.name,
     };
+    state.provider = state.file.provider;
     state.confirmed = true;
     state.job = job;
     state.copy.imageAlt = state.copy.imageAlt || product.name;
@@ -489,7 +531,7 @@ function renderHeader() {
         'div',
         {},
         h('h1', { class: 'ccs-title', text: 'Creative Commerce Studio' }),
-        h('p', { class: 'ccs-subtitle', text: 'Box · Firefly Creative Production · Commerce' }),
+        h('p', { class: 'ccs-subtitle', text: 'Box & Google Drive · Firefly Creative Production · Commerce' }),
       ),
     ),
     state.sdk ? null : alert('notice', null, 'Standalone preview. Open from a Workspace document to connect Box and insert blocks.'),
@@ -663,28 +705,70 @@ function renderFileTile(entry) {
   ));
 }
 
+function versionLabel(id) {
+  const v = String(id || '');
+  return v.length > 14 ? `${v.slice(0, 12)}…` : v;
+}
+
+function renderProviderPicker() {
+  const { list } = state.sources;
+  if (list.length < 2) return null;
+  return h(
+    'div',
+    { class: 'ccs-field' },
+    h('sp-field-label', { text: 'File storage' }),
+    h('div', { class: 'ccs-row ccs-providers', role: 'radiogroup', 'aria-label': 'File storage' }, list.map((p) => h(
+      'sp-action-button',
+      {
+        size: 's',
+        selected: p.id === state.provider,
+        role: 'radio',
+        'aria-checked': p.id === state.provider ? 'true' : 'false',
+        onClick: () => onSwitchProvider(p.id),
+      },
+      icon(SOURCE_ICONS[p.id] || 'folder', 'icon'),
+      p.label,
+      p.connected ? h('span', { class: 'ccs-dot', 'aria-label': 'connected', title: 'Connected' }) : null,
+    ))),
+  );
+}
+
 function renderSourceStep() {
-  const title = 'Choose the Box packshot';
+  const title = 'Choose the packshot';
   if (!state.backendConfigured) {
     return section(title, null, alert('notice', 'Backend not configured', 'An administrator needs to set creative-commerce-studio → backend-url in the site config.'));
   }
   if (!state.sdk) {
-    return section(title, null, alert('notice', 'Workspace required', 'Open this plugin from an Experience Workspace document to connect Box.'));
+    return section(title, null, alert(
+      'notice',
+      'Workspace required',
+      'Open this plugin from an Experience Workspace document to connect your file storage.',
+    ));
   }
   const children = [];
-  if (state.box.error) children.push(alert('negative', null, state.box.error));
-  if (!state.box.checked) {
-    children.push(h('div', { class: 'ccs-loading' }, h('sp-progress-circle', { indeterminate: true, size: 's', label: 'Checking Box connection' }), 'Checking your Box connection…'));
+  if (!state.sources.checked) {
+    children.push(h(
+      'div',
+      { class: 'ccs-loading' },
+      h('sp-progress-circle', { indeterminate: true, size: 's', label: 'Checking file storage connections' }),
+      'Checking your file storage connections…',
+    ));
     return section(title, null, ...children);
   }
-  if (!state.box.connected) {
+  const picker = renderProviderPicker();
+  if (picker) children.push(picker);
+  if (state.sources.error) children.push(alert('negative', null, state.sources.error));
+  const source = currentSource();
+  if (!source) return section(title, null, ...children);
+
+  if (!source.connected) {
     children.push(h(
       'div',
       { class: 'ccs-empty' },
-      h('span', { class: 'ccs-empty-icon', 'aria-hidden': 'true' }, icon('box')),
-      h('p', { class: 'ccs-strong', text: 'Connect your Box account' }),
+      h('span', { class: 'ccs-empty-icon', 'aria-hidden': 'true' }, icon(SOURCE_ICONS[source.id] || 'folder')),
+      h('p', { class: 'ccs-strong', text: `Connect your ${source.label} account` }),
       h('p', { class: 'ccs-body', text: 'Creative Commerce Studio only reads files from the configured campaign folder and never changes them.' }),
-      button('Connect Box', { variant: 'accent', pending: state.busy, onClick: onConnectBox }),
+      button(`Connect ${source.label}`, { variant: 'accent', pending: state.busy, onClick: onConnectSource }),
     ));
     return section(title, null, ...children);
   }
@@ -692,9 +776,9 @@ function renderSourceStep() {
   children.push(h(
     'div',
     { class: 'ccs-row' },
-    h('sp-status-light', { variant: 'positive', size: 's', text: `Connected as ${state.box.user?.name || state.box.user?.login || 'Box user'}` }),
+    h('sp-status-light', { variant: 'positive', size: 's', text: `${source.label}: ${source.user?.name || source.user?.login || 'connected'}` }),
     h('sp-action-button', {
-      size: 's', quiet: true, disabled: state.busy, onClick: onDisconnectBox,
+      size: 's', quiet: true, disabled: state.busy, onClick: onDisconnectSource,
     }, 'Disconnect'),
   ));
 
@@ -710,16 +794,25 @@ function renderSourceStep() {
     children.push(crumb);
     if (!folder.entries.length) children.push(h('p', { class: 'ccs-detail', text: 'This folder is empty.' }));
     children.push(h('ul', { class: 'ccs-tiles' }, folder.entries.map(renderFileTile)));
+  } else {
+    children.push(h(
+      'div',
+      { class: 'ccs-loading' },
+      h('sp-progress-circle', { indeterminate: true, size: 's', label: 'Loading folder' }),
+      'Loading the campaign folder…',
+    ));
   }
 
   if (state.file) {
+    const fromLabel = state.sources.list.find((p) => p.id === state.file.provider)?.label
+      || state.file.provider;
     children.push(h(
       'div',
       { class: 'ccs-card is-subtle' },
       h('sp-checkbox', {
         checked: state.confirmed,
         onChange: (e) => { state.confirmed = e.target.checked; render(); },
-      }, `I confirm “${state.file.name}” (version ${state.file.versionId}) shows ${state.product.name} (${state.product.sku}) and I am authorized to use it.`),
+      }, `I confirm “${state.file.name}” from ${fromLabel} (version ${versionLabel(state.file.versionId)}) shows ${state.product.name} (${state.product.sku}) and I am authorized to use it.`),
     ));
   }
   children.push(footer(
@@ -861,7 +954,7 @@ function renderPrepareStep() {
   if (canEnter(3)) buttons.push(button('Continue', { variant: 'accent', onClick: () => goTo(3) }));
   children.push(footer(...buttons));
 
-  return section('Prepare placements', 'Runs the published Firefly Creative Production workflow on the exact Box file version you selected.', ...children);
+  return section('Prepare placements', 'Runs the published Firefly Creative Production workflow on the exact file version you selected.', ...children);
 }
 
 function textField(label, key, { multiline = false, max = 200, help } = {}) {
@@ -1017,7 +1110,7 @@ async function init() {
     try {
       state.recent = (await state.backend.jobRecent()).jobs || [];
     } catch (e) { /* recent jobs are a convenience */ }
-    await refreshBox();
+    await refreshSources();
     await refreshFirefly();
     render();
   }
