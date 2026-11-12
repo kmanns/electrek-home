@@ -106,6 +106,8 @@ npm test
 aio app deploy
 ```
 
+> **After changing only `.env`, run `aio app deploy --force-deploy`.** A plain deploy skips actions whose code hasn't changed, and settings live at package level, so a changed value (for example `BRIDGE_TOKEN`) may not reach the deployed actions.
+
 The deploy prints the action URLs. Your backend base URL is everything before the action name, for example `https://<namespace>.adobeioruntime.net/api/v1/web/creative-commerce-studio`.
 
 ## 5. Point the site at the backend
@@ -160,7 +162,7 @@ For local development, use `ref=local`. Workspace then loads the plugin from `ht
 | "Adobe doesn't let hosted apps sign in to Firefly…" | Expected in `mcp` mode (Adobe policy). Use `bridge` for demos or `api` with a credential |
 | "Local Firefly bridge offline" in the plugin | Start `npm run bridge` on the operator's computer; queued runs then start automatically |
 | Bridge prints "Not signed in" or "Sign-in expired" | Run `npm run bridge:login` again |
-| Bridge prints "Backend bridge-next: Bridge token rejected" | `BRIDGE_TOKEN` in the bridge's `.env` differs from the deployed one; redeploy after changing it |
+| Bridge prints "Backend bridge-next: Bridge token rejected" | The deployed `BRIDGE_TOKEN` differs from `.env`. Run `aio app deploy --force-deploy` (a plain deploy can skip unchanged actions), then `npm run bridge` |
 | "Adobe's Firefly sign-in did not accept this app's registration" | The MCP sign-in server refused dynamic registration for this redirect URI. Use `api` mode, or check `FIREFLY_REDIRECT_URI` |
 | Connect Firefly window closes but stays disconnected | Check `aio app logs` for `firefly-auth-callback`; the Adobe account may lack access to the workflow |
 | `ffcpe-error … rejected the request` | Wrong workflow ID or node ID, the workflow isn't published, or (api mode) the request body doesn't match |
