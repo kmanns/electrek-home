@@ -15,7 +15,7 @@ const crypto = require('crypto');
 const { AppError } = require('./http');
 const store = require('./store');
 const box = require('./box');
-const { engine } = require('./engines');
+const { engine, mode: ffMode, interpretMcpStatus, BRIDGE_QUEUE } = require('./engines');
 const delivery = require('./delivery');
 const fireflyAuth = require('./firefly-auth');
 const { randomId } = require('./crypto');
@@ -104,7 +104,7 @@ async function submit(params, user, body, fetchImpl = fetch) {
   if (duplicate) return view(duplicate);
 
   // Fail fast (before any download or job record) when the author still has to connect Firefly.
-  if ((params.FFCPE_MODE || 'mcp') === 'mcp') await fireflyAuth.accessToken(params, user, fetchImpl);
+  if (ffMode(params) === 'mcp') await fireflyAuth.accessToken(params, user, fetchImpl);
 
   // Retrieve the exact selected file version (validates folder allow-list + type).
   const src = await box.downloadVersion(params, user, source.fileId, source.versionId, fetchImpl);
@@ -122,7 +122,7 @@ async function submit(params, user, body, fetchImpl = fetch) {
     source: {
       provider: 'box', fileId: String(source.fileId), versionId: String(source.versionId), name: src.name, sha1: src.sha1, width: kind.width, height: kind.height,
     },
-    recipe: { workflowId: params.FFCPE_WORKFLOW_ID, version: params.FFCPE_RECIPE_VERSION || '1', mode: params.FFCPE_MODE || 'mcp' },
+    recipe: { workflowId: params.FFCPE_WORKFLOW_ID, version: params.FFCPE_RECIPE_VERSION || '1', mode: ffMode(params) },
     deliveryToken: randomId(12).replace(/[^a-zA-Z0-9]/g, '').slice(0, 10).toLowerCase(),
     status: 'queued',
     createdAt: now,
@@ -138,11 +138,16 @@ async function submit(params, user, body, fetchImpl = fetch) {
 
   const sourceUrl = await files.generatePresignURL(job.source.filePath, { expiryInSeconds: SOURCE_URL_SECONDS, permissions: 'r' });
   try {
-    const { batchId } = await engine(params).submit(params, user, {
+    const started = await engine(params).submit(params, user, {
       sourceUrl, sku, jobId: id, productName: job.productName, sourceName: src.name, mimeType: kind.type,
     }, fetchImpl);
-    job.batchId = batchId;
-    job.status = 'processing';
+    if (started.queued) {
+      job.status = 'queued';
+      job.message = 'Waiting for the local Firefly bridge to pick up this run.';
+    } else {
+      job.batchId = started.batchId;
+      job.status = 'processing';
+    }
   } catch (e) {
     job.status = e.uncertain ? 'submit-uncertain' : 'render-failed';
     job.message = e.uncertain
@@ -164,7 +169,7 @@ async function fetchOutput(fetchImpl, url) {
 
 async function status(params, user, jobId, fetchImpl = fetch) {
   const job = await load(user, jobId);
-  if (TERMINAL.includes(job.status) || !job.batchId) return view(job);
+  if (TERMINAL.includes(job.status) || !job.batchId || job.recipe?.mode === 'bridge') return view(job);
 
   // A firefly-reauth error propagates: the author reconnects and the job is polled again unchanged.
   const result = await engine(params).poll(params, user, job.batchId, fetchImpl);
@@ -178,8 +183,13 @@ async function status(params, user, jobId, fetchImpl = fetch) {
     return view(job);
   }
 
+  await storeOutputs(job, result.placements, fetchImpl);
+  return view(job);
+}
+
+/** Copies the matched (short-lived) outputs into App Builder Files and marks the job reviewable. */
+async function storeOutputs(job, placements, fetchImpl) {
   try {
-    const { placements } = result;
     const files = await store.getFiles();
     job.outputs = {};
     // eslint-disable-next-line no-restricted-syntax
@@ -200,7 +210,100 @@ async function status(params, user, jobId, fetchImpl = fetch) {
     job.message = e.message;
   }
   await save(job);
-  return view(job);
+}
+
+/* ---------- local bridge (DEMO ONLY, FFCPE_MODE=bridge) ---------- */
+
+const BRIDGE_HEARTBEAT = 'bridge.heartbeat';
+const CLAIM_TIMEOUT_MS = 10 * 60 * 1000;
+
+/** Returns work for the operator's local bridge and records its heartbeat. */
+async function bridgeNext(params) {
+  const ids = nodeIdsFor(params);
+  await store.putJSON(BRIDGE_HEARTBEAT, { at: Date.now() }, 1);
+  const queue = (await store.getJSON(BRIDGE_QUEUE)) || [];
+  const keep = [];
+  const tasks = [];
+  const files = await store.getFiles();
+  // eslint-disable-next-line no-restricted-syntax
+  for (const jobId of queue) {
+    // eslint-disable-next-line no-await-in-loop
+    const job = await store.getJSON(jobKey(jobId));
+    // eslint-disable-next-line no-continue
+    if (!job || TERMINAL.includes(job.status)) continue;
+    if (job.batchId) {
+      keep.push(jobId);
+      tasks.push({ type: 'poll', jobId, batchId: job.batchId });
+    } else if (!job.bridge?.claimedAt) {
+      job.bridge = { claimedAt: Date.now() };
+      job.message = 'The local Firefly bridge is starting the run.';
+      // eslint-disable-next-line no-await-in-loop
+      await save(job);
+      // eslint-disable-next-line no-await-in-loop
+      const sourceUrl = await files.generatePresignURL(job.source.filePath, { expiryInSeconds: SOURCE_URL_SECONDS, permissions: 'r' });
+      keep.push(jobId);
+      tasks.push({
+        type: 'submit',
+        jobId,
+        workflowId: params.FFCPE_WORKFLOW_ID,
+        productNodeId: ids.product,
+        sourceUrl,
+        sourceName: job.source.name,
+        mimeType: job.source.filePath.endsWith('.png') ? 'image/png' : 'image/jpeg',
+      });
+    } else if (Date.now() - job.bridge.claimedAt > CLAIM_TIMEOUT_MS) {
+      // Claimed but never confirmed: never resubmit blindly.
+      job.status = 'submit-uncertain';
+      job.message = 'The local bridge took this run but never confirmed it started. Check Firefly before running again.';
+      // eslint-disable-next-line no-await-in-loop
+      await save(job);
+    } else {
+      keep.push(jobId);
+    }
+  }
+  await store.putJSON(BRIDGE_QUEUE, keep, 30);
+  return { tasks: tasks.slice(0, 5) };
+}
+
+/** Accepts a progress report from the bridge: { jobId, batchId } | { jobId, result } | { jobId, failure, uncertain }. */
+async function bridgeReport(params, report, fetchImpl = fetch) {
+  const jobId = String(report?.jobId || '');
+  if (!/^[\w-]{8,64}$/.test(jobId)) throw new AppError(400, 'bad-request', 'Invalid job ID.');
+  const job = await store.getJSON(jobKey(jobId));
+  if (!job || job.recipe?.mode !== 'bridge') throw new AppError(404, 'job-not-found', 'Job not found.');
+  if (TERMINAL.includes(job.status)) return { status: job.status };
+
+  if (report.failure) {
+    job.status = report.uncertain ? 'submit-uncertain' : 'render-failed';
+    job.message = String(report.failure).slice(0, 300);
+    await save(job);
+    return { status: job.status };
+  }
+  if (report.batchId && !report.result) {
+    job.batchId = String(report.batchId).slice(0, 200);
+    job.status = 'processing';
+    job.message = null;
+    await save(job);
+    return { status: job.status };
+  }
+  if (report.result && job.batchId) {
+    const r = interpretMcpStatus(params, report.result);
+    if (r.state === 'rendered') {
+      await storeOutputs(job, r.placements, fetchImpl);
+    } else if (r.state !== job.status || r.message !== job.message) {
+      job.status = r.state;
+      job.message = r.message || null;
+      await save(job);
+    }
+    return { status: job.status };
+  }
+  throw new AppError(400, 'bad-request', 'Nothing to report.');
+}
+
+async function bridgeStatus() {
+  const hb = await store.getJSON(BRIDGE_HEARTBEAT);
+  const lastSeenMs = hb?.at ? Date.now() - hb.at : null;
+  return { online: lastSeenMs !== null && lastSeenMs < 60 * 1000, lastSeenMs };
 }
 
 async function accept(params, user, jobId, fetchImpl = fetch) {
@@ -247,6 +350,11 @@ async function recent(user) {
   return { jobs: await Promise.all(jobs.map(view)) };
 }
 
+function nodeIdsFor(params) {
+  // eslint-disable-next-line global-require
+  return require('./engines').nodeIds(params);
+}
+
 module.exports = {
-  submit, status, accept, recent, TERMINAL,
+  submit, status, accept, recent, bridgeNext, bridgeReport, bridgeStatus, TERMINAL,
 };

@@ -1,8 +1,11 @@
 /**
  * Production engines for one FFCPE run of the published workflow.
  *
- *   FFCPE_MODE=mcp (default)  per-author sign-in, run-workflow MCP tools
- *   FFCPE_MODE=api            server-to-server credential, REST Workflow API
+ *   FFCPE_MODE=mcp (default)  per-author sign-in, run-workflow MCP tools (hosted sign-in;
+ *                             currently refused by Adobe for non-local apps)
+ *   FFCPE_MODE=api            server-to-server credential, REST Workflow API (production route)
+ *   FFCPE_MODE=bridge         DEMO ONLY: a local bridge on the operator's computer runs the
+ *                             workflow with the operator's own MCP sign-in (see bridge/)
  *
  * Both expose:
  *   submit(params, user, input, fetch) -> { batchId }
@@ -97,6 +100,19 @@ function normalizeState(raw) {
   return 'processing';
 }
 
+/** Interprets a run_workflow_get_status payload (used by the MCP engine and the bridge). */
+function interpretMcpStatus(params, body) {
+  const state = normalizeState(findValue(body, ['status', 'state', 'runtimeStatus']));
+  if (state === 'queued' || state === 'processing') return { state };
+  if (state === 'cancelled') return { state: 'cancelled', message: 'The Firefly run was cancelled.' };
+  if (state === 'failed') return { state: 'render-failed', message: collectErrors(body)[0] || 'The Firefly workflow failed.' };
+  const mapped = placementsFrom(params, body);
+  if (mapped.state === 'render-failed' && failedCount(body) > 0) {
+    return { state: 'render-failed', message: collectErrors(body)[0] || mapped.message };
+  }
+  return mapped;
+}
+
 /* ---------- MCP engine ---------- */
 
 const mcpEngine = {
@@ -123,15 +139,28 @@ const mcpEngine = {
     const body = await withSession(params, user, (s) => s.callTool(params.FFCPE_TOOL_STATUS || 'run_workflow_get_status', {
       instanceId: batchId, includeOutputs: true, includeFailedExecutions: true,
     }), fetchImpl);
-    const state = normalizeState(findValue(body, ['status', 'state', 'runtimeStatus']));
-    if (state === 'queued' || state === 'processing') return { state };
-    if (state === 'cancelled') return { state: 'cancelled', message: 'The Firefly run was cancelled.' };
-    if (state === 'failed') return { state: 'render-failed', message: collectErrors(body)[0] || 'The Firefly workflow failed.' };
-    const mapped = placementsFrom(params, body);
-    if (mapped.state === 'render-failed' && failedCount(body) > 0) {
-      return { state: 'render-failed', message: collectErrors(body)[0] || mapped.message };
-    }
-    return mapped;
+    return interpretMcpStatus(params, body);
+  },
+};
+
+/* ---------- Local bridge engine (DEMO ONLY) ---------- */
+
+const BRIDGE_QUEUE = 'bridge.queue';
+
+const bridgeEngine = {
+  /** Queues the job; the operator's local bridge submits it with their own sign-in. */
+  async submit(params, user, input) {
+    nodeIds(params);
+    // eslint-disable-next-line global-require
+    const store = require('./store');
+    const queue = (await store.getJSON(BRIDGE_QUEUE)) || [];
+    if (!queue.includes(input.jobId)) queue.push(input.jobId);
+    await store.putJSON(BRIDGE_QUEUE, queue.slice(-50), 30);
+    return { queued: true };
+  },
+  /** The bridge reports progress itself; nothing to poll from the backend. */
+  async poll() {
+    return { state: null };
   },
 };
 
@@ -161,10 +190,27 @@ const apiEngine = {
   },
 };
 
+function mode(params) {
+  const m = params.FFCPE_MODE || 'mcp';
+  if (!['mcp', 'api', 'bridge'].includes(m)) throw new AppError(500, 'misconfigured', 'FFCPE_MODE must be mcp, api or bridge.');
+  return m;
+}
+
 function engine(params) {
-  return (params.FFCPE_MODE || 'mcp') === 'api' ? apiEngine : mcpEngine;
+  return { api: apiEngine, bridge: bridgeEngine, mcp: mcpEngine }[mode(params)];
 }
 
 module.exports = {
-  engine, mcpEngine, apiEngine, collectNodeOutputs, placementsFrom, normalizeState,
+  engine,
+  mode,
+  mcpEngine,
+  apiEngine,
+  bridgeEngine,
+  BRIDGE_QUEUE,
+  nodeIds,
+  findValue,
+  collectNodeOutputs,
+  placementsFrom,
+  normalizeState,
+  interpretMcpStatus,
 };

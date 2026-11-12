@@ -1,5 +1,8 @@
 # Creative Commerce Studio — Workspace library plugin
 
+> [!WARNING]
+> **Demo build — not production-ready.** See [PRODUCTION-READINESS.md](../../app-builder/creative-commerce-studio/PRODUCTION-READINESS.md) for the API access, roles and credentials needed before real use.
+
 Author UI for Creative Commerce Studio. Full installation and configuration: [app-builder/creative-commerce-studio/README.md](../../app-builder/creative-commerce-studio/README.md).
 
 | File | Purpose |

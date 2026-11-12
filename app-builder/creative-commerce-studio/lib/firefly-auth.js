@@ -114,7 +114,28 @@ async function startAuth(params, user, fetchImpl = fetch) {
   url.searchParams.set('code_challenge_method', 'S256');
   url.searchParams.set('resource', mcpUrl(params));
   if (params.FIREFLY_SCOPE) url.searchParams.set('scope', params.FIREFLY_SCOPE);
+  await assertSignInAllowed(url.href, fetchImpl);
   return { authorizeUrl: url.href };
+}
+
+const SIGNIN_NOT_ALLOWED = "Adobe's Firefly sign-in only lets local tools (and Claude) sign in, so this hosted app "
+  + 'cannot connect to Firefly directly yet. Options: a server-to-server Firefly credential (FFCPE_MODE=api), '
+  + 'or the local Firefly bridge for demos (FFCPE_MODE=bridge). See PRODUCTION-READINESS.md.';
+
+/**
+ * Asks the authorization endpoint whether it accepts our redirect URI before the
+ * author sees a popup, so a policy refusal becomes a clear message instead of raw JSON.
+ */
+async function assertSignInAllowed(authorizeUrl, fetchImpl) {
+  let res;
+  try {
+    res = await fetchImpl(authorizeUrl, { method: 'GET', redirect: 'manual', headers: { Accept: 'application/json, text/html' } });
+  } catch (e) {
+    return; // can't tell; let the popup show what Adobe says
+  }
+  if (res.status !== 400) return;
+  const text = await res.text().catch(() => '');
+  if (/redirect_uri/i.test(text)) throw new AppError(403, 'firefly-signin-not-allowed', SIGNIN_NOT_ALLOWED);
 }
 
 async function tokenRequest(params, form, fetchImpl) {
@@ -209,7 +230,15 @@ async function accessToken(params, user, fetchImpl = fetch, { force = false } = 
 }
 
 async function status(params, user) {
-  if ((params.FFCPE_MODE || 'mcp') !== 'mcp') return { connected: true, mode: 'api' };
+  const m = params.FFCPE_MODE || 'mcp';
+  if (m === 'bridge') {
+    // eslint-disable-next-line global-require
+    const { online, lastSeenMs } = await require('./jobs').bridgeStatus();
+    return {
+      connected: online, mode: 'bridge', bridgeOnline: online, lastSeenMs,
+    };
+  }
+  if (m !== 'mcp') return { connected: true, mode: 'api' };
   const conn = await readConnection(params, user);
   return { connected: !!conn, mode: 'mcp' };
 }
