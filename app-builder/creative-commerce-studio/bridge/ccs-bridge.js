@@ -34,18 +34,38 @@ const POLL_MS = 5000;
 
 /* ---------- config ---------- */
 
+/**
+ * Reads .env exactly like `aio app deploy` does (dotenv), so the bridge and the
+ * deployed backend always see the same values (quotes, trailing spaces, # comments).
+ */
 function loadDotEnv(file) {
-  const out = {};
-  if (!fs.existsSync(file)) return out;
-  fs.readFileSync(file, 'utf8').split(/\r?\n/).forEach((line) => {
-    const m = line.match(/^\s*([A-Z0-9_]+)\s*=\s*(.*)\s*$/);
-    if (m) out[m[1]] = m[2].replace(/^["']|["']$/g, '');
-  });
-  return out;
+  if (!fs.existsSync(file)) return {};
+  const text = fs.readFileSync(file, 'utf8');
+  try {
+    // eslint-disable-next-line global-require
+    return require('dotenv').parse(text);
+  } catch (e) {
+    // Fallback with the same rules for the common cases.
+    const out = {};
+    text.split(/\r?\n/).forEach((line) => {
+      const m = line.match(/^\s*(?:export\s+)?([\w.-]+)\s*=\s*(.*)$/);
+      if (!m) return;
+      let v = m[2].trim();
+      const q = v.match(/^(['"`])([\s\S]*)\1$/);
+      if (q) v = q[2];
+      else v = v.replace(/\s+#.*$/, '').trim();
+      out[m[1]] = v;
+    });
+    return out;
+  }
 }
 
 function config() {
-  const env = { ...loadDotEnv(path.join(__dirname, '..', '.env')), ...process.env };
+  const fileEnv = loadDotEnv(path.join(__dirname, '..', '.env'));
+  if (process.env.BRIDGE_TOKEN && fileEnv.BRIDGE_TOKEN && process.env.BRIDGE_TOKEN !== fileEnv.BRIDGE_TOKEN) {
+    console.warn('Note: BRIDGE_TOKEN is set in your terminal environment and overrides the one in .env.');
+  }
+  const env = { ...fileEnv, ...process.env };
   const cfg = {
     backend: (env.CCS_BACKEND_URL || '').replace(/\/$/, ''),
     bridgeToken: env.BRIDGE_TOKEN || '',
@@ -286,6 +306,9 @@ async function run() {
       }
     } catch (e) {
       console.error(`[${new Date().toLocaleTimeString()}] ${e.message}`);
+      if (/token rejected/i.test(e.message)) {
+        console.error('The BRIDGE_TOKEN in .env does not match the deployed backend. Run "aio app deploy" after any change to .env, then start the bridge again.');
+      }
       if (e.fatal) process.exit(1);
     }
     // eslint-disable-next-line no-await-in-loop

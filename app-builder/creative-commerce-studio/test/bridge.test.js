@@ -179,10 +179,13 @@ describe('local bridge script', () => {
     expect(reports).toEqual([{ jobId: 'job-12345678', result: completed }]);
   });
 
-  test('reads only KEY=VALUE lines from .env', () => {
+  test('reads .env the same way the deploy does (quotes, trailing spaces, comments)', () => {
     const f = path.join(TMP_HOME, 'test.env');
-    fs.writeFileSync(f, '# comment\nCCS_BACKEND_URL=https://x\nBRIDGE_TOKEN="abc"\nnot a line\n');
-    expect(bridgeScript.loadDotEnv(f)).toEqual({ CCS_BACKEND_URL: 'https://x', BRIDGE_TOKEN: 'abc' });
+    fs.writeFileSync(f, '# comment\nCCS_BACKEND_URL=https://x\nBRIDGE_TOKEN=abc123   \nQUOTED="q v"\nCOMMENTED=val # note\nnot a line\n');
+    const env = bridgeScript.loadDotEnv(f);
+    const dotenv = require('dotenv').parse(fs.readFileSync(f, 'utf8'));
+    expect(env).toEqual(dotenv);
+    expect(env).toMatchObject({ CCS_BACKEND_URL: 'https://x', BRIDGE_TOKEN: 'abc123', QUOTED: 'q v', COMMENTED: 'val' });
   });
 });
 

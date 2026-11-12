@@ -14,7 +14,8 @@
   },
   "dependencies": {
     "@adobe/aio-lib-files": "^4.1.4",
-    "@adobe/aio-lib-state": "^5.4.0"
+    "@adobe/aio-lib-state": "^5.4.0",
+    "dotenv": "^16.6.1"
   },
   "devDependencies": {
     "jest": "^29.7.0"
