@@ -4,9 +4,10 @@ jest.mock('@adobe/aio-lib-state', () => ({ init: async () => require('./helpers'
 jest.mock('@adobe/aio-lib-files', () => ({ init: async () => require('./helpers').filesMock }));
 
 const { encrypt, decrypt } = require('../lib/crypto');
-const { webAction } = require('../lib/http');
+const { webAction, cleanParams } = require('../lib/http');
 const auth = require('../lib/auth');
 const ffcpe = require('../lib/ffcpe');
+const engines = require('../lib/engines');
 const { sniff } = require('../lib/image');
 
 beforeEach(() => { h.reset(); auth._cache.clear(); });
@@ -67,25 +68,44 @@ describe('auth', () => {
 
 describe('ffcpe contract helpers', () => {
   test('fills the execute template with JSON-escaped values', () => {
-    const body = ffcpe.fillTemplate(h.PARAMS.FFCPE_EXECUTE_TEMPLATE, { workflowId: 'wf', sku: 'A"B', sourceUrl: 'https://x/y?a=1&b=2' });
+    const body = ffcpe.fillTemplate('{"workflowId":"{{workflowId}}","inputs":[{"name":"{{sku}}","url":"{{sourceUrl}}"}]}', { workflowId: 'wf', sku: 'A"B', sourceUrl: 'https://x/y?a=1&b=2' });
     expect(body).toEqual({ workflowId: 'wf', inputs: [{ name: 'A"B', url: 'https://x/y?a=1&b=2' }] });
+  });
+  test('default template mirrors the Execute Graph body', () => {
+    expect(ffcpe.fillTemplate(ffcpe.DEFAULT_TEMPLATE, { workflowId: 'wf', productNodeId: 'n1', sourceUrl: 'https://s/1.png' }))
+      .toEqual({ workflow: { workflowId: 'wf', inputs: [[{ node_id: 'n1', content: [{ presignedUrl: 'https://s/1.png' }] }]] } });
   });
   test('refuses unknown placeholders', () => {
     expect(() => ffcpe.fillTemplate('{"x":"{{nope}}"}', {})).toThrow(/unknown placeholder/);
   });
-  test('maps desktop/mobile outputs by name and refuses ambiguity', () => {
-    const body = { executions: [{ status: 'success', outputs: [{ name: 'BGA-desktop', url: 'https://o/1.png' }, { name: 'BGA-mobile', url: 'https://o/2.png' }] }] };
-    const m = ffcpe.mapPlacements(h.PARAMS, body);
-    expect(m.desktop.url).toBe('https://o/1.png');
-    expect(m.mobile.url).toBe('https://o/2.png');
-    expect(() => ffcpe.mapPlacements(h.PARAMS, { executions: [{ outputs: [{ name: 'a', url: 'https://o/a.png' }, { name: 'b', url: 'https://o/b.png' }] }] }))
-      .toThrow(/desktop and mobile/);
+});
+
+describe('engine helpers', () => {
+  test('matches desktop/mobile by node ID, not by name or order', () => {
+    const body = { outputUrls: [
+      { nodeId: 'node_mobile', name: 'desktop-looking-name.jpg', url: 'https://o/m.jpg' },
+      { nodeId: 'node_cutout', name: 'cut.png', url: 'https://o/c.png' },
+      { nodeId: 'node_desktop', name: 'mobile-looking-name.jpg', url: 'https://o/d.jpg' },
+    ] };
+    const r = engines.placementsFrom(h.PARAMS, body);
+    expect(r.state).toBe('rendered');
+    expect(r.placements.desktop.url).toBe('https://o/d.jpg');
+    expect(r.placements.mobile.url).toBe('https://o/m.jpg');
   });
-  test('interprets batch states', () => {
-    expect(ffcpe.interpret({ status: 'running' }).state).toBe('processing');
-    expect(ffcpe.interpret({ status: 'failed' }, { executions: [{ status: 'failed', error: { message: 'bad mask' } }] }))
-      .toEqual({ state: 'render-failed', message: 'bad mask' });
-    expect(ffcpe.interpret({ status: 'completed' }, { executions: [{ status: 'success' }] }).state).toBe('rendered');
+  test('reports which nodes came back when a composite is missing', () => {
+    const r = engines.placementsFrom(h.PARAMS, { outputUrls: [{ nodeId: 'node_cutout', url: 'https://o/c.png' }] });
+    expect(r).toMatchObject({ state: 'render-failed', message: expect.stringMatching(/node_cutout/) });
+  });
+  test('normalizes status words', () => {
+    expect(engines.normalizeState('RUNNING')).toBe('processing');
+    expect(engines.normalizeState('succeeded')).toBe('completed');
+    expect(engines.normalizeState('canceled')).toBe('cancelled');
+  });
+});
+
+describe('cleanParams', () => {
+  test('drops unresolved $NAME placeholders and empty strings', () => {
+    expect(cleanParams({ A: '$FFCPE_MODE', B: '', C: 'mcp', D: '$5 off' })).toEqual({ C: 'mcp', D: '$5 off' });
   });
 });
 

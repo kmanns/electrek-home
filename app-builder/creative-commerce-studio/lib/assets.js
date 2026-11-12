@@ -137,13 +137,13 @@ async function waitForDelivery(fetchImpl, url, attempts = 6) {
  * Re-running after a partial failure skips the upload when the asset exists.
  */
 async function deliver(params, {
-  sku, jobId, placement, bytes, mimeType, title,
+  sku, jobId, placement, bytes, mimeType, title, fileName: givenName,
 }, fetchImpl = fetch) {
   requireConfig(params);
   const root = damRoot(params);
   const folder = `${root}/${safeName(sku)}`;
   const ext = mimeType === 'image/png' ? 'png' : 'jpg';
-  const fileName = `${safeName(sku)}-${placement}-${safeName(jobId).slice(0, 12)}.${ext}`;
+  const fileName = givenName || `${safeName(sku)}-${placement}-${safeName(jobId).slice(0, 12)}.${ext}`;
   const assetPath = `${folder}/${fileName}`;
 
   await ensureFolder(params, fetchImpl, root);

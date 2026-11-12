@@ -8,8 +8,9 @@ Workspace library plugin  (tools/creative-commerce-studio/)
   ├─ Box / jobs ─────────────► App Builder actions (this folder)
   │                              ├─ IMS-validated author identity
   │                              ├─ Box OAuth + read-only folder access (encrypted tokens)
-  │                              ├─ FFCPE Workflow API: submit / status / outputs
-  │                              └─ Product Visuals (AEM Assets): upload + approve → delivery URL
+  │                              ├─ Firefly Creative Production: per-author sign-in, run-workflow MCP
+  │                              │   (or REST Workflow API with a server-to-server credential)
+  │                              └─ delivery: Product Visuals (AEM Assets) or App Builder public storage
   └─ insert at cursor ───────► Creative Product Spotlight block (blocks/creative-product-spotlight/)
 ```
 
@@ -21,8 +22,10 @@ Author flow: **Product → Source → Prepare → Review → Insert**. The plugi
 |------|-------|
 | Spotlight block | Built and browser-tested: desktop/mobile, missing SKU, reduced motion, long copy |
 | Workspace plugin | Built and tested in a simulated Workspace frame with a mocked backend |
-| App Builder actions | Built, unit-tested (`npm test`, 21 tests); **not yet deployed** |
-| Box, FFCPE, Product Visuals | **Need your accounts and credentials**. Nothing has been run against them yet |
+| App Builder actions | Built, unit-tested (`npm test`, 33 tests). Stage deploy with Box verified in Workspace |
+| Box | Connect + folder listing verified in Workspace (2026-11-11) |
+| FFCPE (MCP route) | Workflow contract verified with a real run through the MCP (2026-11-12); backend sign-in not yet run live |
+| Product Visuals | Needs an AEM server-to-server credential; until then delivery uses App Builder public storage |
 
 ## Prerequisites
 
@@ -43,9 +46,24 @@ Author flow: **Product → Source → Prepare → Review → Insert**. The plugi
 
 ## 2. Firefly Creative Production
 
-Follow [workflows/README.md](workflows/README.md): build and publish the workflow, add the server-to-server credential, and record the Workflow API base URL and request body from your tenant's API reference.
+Build and publish the workflow first ([workflows/README.md](workflows/README.md)). Then pick a mode:
 
-## 3. Product Visuals delivery
+**`FFCPE_MODE=mcp` (default, no Adobe credential needed).** The backend is an MCP client of `https://run-workflow.adobe.io/mcp`. Each author clicks **Connect Firefly** on the Prepare step and signs in with their own Adobe account, which must be able to run the workflow. The first sign-in after a deploy registers this backend with Adobe's MCP sign-in server (OAuth dynamic client registration); that creates a client record on Adobe's side. Settings:
+
+- `FIREFLY_REDIRECT_URI`: the backend URL followed by `/firefly-auth-callback`
+- `FFCPE_WORKFLOW_ID` and the node IDs `FFCPE_PRODUCT_NODE_ID`, `FFCPE_DESKTOP_NODE_ID`, `FFCPE_MOBILE_NODE_ID` (see the workflow's Execute Graph snippet). Outputs are matched by node ID, never by file name or order.
+
+The run-workflow MCP is a development-time agent service, so this route suits demos and pilots. For production, use `api` mode.
+
+**`FFCPE_MODE=api`.** REST Workflow API (`POST /batch/execute`, status, executions; contract in `https://run-workflow.adobe.io/openapi.json`) with an OAuth Server-to-Server credential. This needs Developer access in the org that owns the workflow. Set `FFCPE_CLIENT_ID`, `FFCPE_CLIENT_SECRET`, `FFCPE_IMS_ORG_ID` and, if your credential requires it, `FFCPE_IMS_USER_ID`. The default request body mirrors the Execute Graph snippet; override it with `FFCPE_EXECUTE_TEMPLATE` if needed.
+
+In both modes the workflow gets a 1-hour presigned App Builder Files URL to the exact Box file version (Box links aren't accepted as workflow input hosts).
+
+## 3. Delivery of approved images
+
+`DELIVERY_MODE=public` (the default when no AEM credential is set) stores approved renditions under App Builder Files `public/creative-commerce-studio/<sku>/` and inserts their public URLs. They are durable and need no extra credential, but they aren't managed assets.
+
+`DELIVERY_MODE=aem` delivers to Product Visuals:
 
 1. In Developer Console, add an OAuth Server-to-Server credential with AEM API access for your AEM Cloud Service environment. Make sure the environment allows that client. Put the credential and scopes in `AEM_CLIENT_ID`, `AEM_CLIENT_SECRET` and `AEM_SCOPES`.
 2. Set `AEM_AUTHOR_URL` / `AEM_DELIVERY_URL` (`author-p…-e…` / `delivery-p…-e…`).
@@ -93,11 +111,11 @@ For local development, use `ref=local`. Workspace then loads the plugin from `ht
 ## Security model
 
 - **Author identity:** every call carries the author's Workspace IMS token. The backend validates it with IMS (`IMS_ALLOWED_CLIENT_IDS`, optional `IMS_ALLOWED_ORGS`) and keys all data by that user. There is no shared "current user".
-- **Box tokens:** stored AES-256-GCM-encrypted in App Builder State, bound to the user, and never sent to the browser. Refreshes are serialized per user, and a revoked refresh token asks the author to reconnect.
+- **Box and Firefly tokens:** stored AES-256-GCM-encrypted in App Builder State, bound to the user, and never sent to the browser. Refreshes are serialized per user, and a revoked refresh token asks the author to reconnect. Firefly sign-in uses PKCE; the verifier never leaves the backend.
 - **OAuth state:** one-time, 10-minute, bound to the author who started the flow.
 - **Action inputs:** marked `final`, so request parameters cannot override configuration. CORS is limited to `ALLOWED_ORIGINS`.
 - **Processing files:** source and output files live in App Builder Files. Only short-lived presigned URLs leave the backend: 1 h for FFCPE input, 15 min for previews.
-- **Published page:** contains only the SKU, copy and Product Visuals delivery URLs. No Box links, job IDs or account IDs.
+- **Published page:** contains only the SKU, copy and delivery URLs (random file tokens). No Box links, Firefly output links, job IDs or account IDs.
 
 ## Job behaviour
 
@@ -115,20 +133,22 @@ For local development, use `ref=local`. Workspace then loads the plugin from `ht
 | "token was not issued to Experience Workspace" | Add the Workspace client ID to `IMS_ALLOWED_CLIENT_IDS` |
 | Box popup closes but stays disconnected | Redirect URI mismatch or the enterprise hasn't authorized the app. Check the `box-auth-callback` logs (`aio app logs`) |
 | `box-folder-not-allowed` | The file is outside `BOX_ALLOWED_FOLDER_ID` |
-| `ffcpe-error … rejected the request` | `FFCPE_EXECUTE_TEMPLATE` doesn't match your tenant's API, or the workflow isn't published |
-| `ffcpe-outputs-unmapped` | Output names don't contain the `FFCPE_OUTPUT_MATCH` substrings |
+| "Adobe's Firefly sign-in did not accept this app's registration" | The MCP sign-in server refused dynamic registration for this redirect URI. Use `api` mode, or check `FIREFLY_REDIRECT_URI` |
+| Connect Firefly window closes but stays disconnected | Check `aio app logs` for `firefly-auth-callback`; the Adobe account may lack access to the workflow |
+| `ffcpe-error … rejected the request` | Wrong workflow ID or node ID, the workflow isn't published, or (api mode) the request body doesn't match |
+| "desktop/mobile composites were not found (output nodes: …)" | The listed node IDs are what came back; set `FFCPE_DESKTOP_NODE_ID` / `FFCPE_MOBILE_NODE_ID` to the composite nodes |
 | `delivery-pending` | Asset approved but Dynamic Media isn't serving it yet. Retry Accept after a minute |
 | CTA missing on the page | The SKU isn't in this store view (`data-product-status="not-found"` on the block) |
 
 ## Disconnect and clean up
 
-- Authors use **Disconnect** in the plugin, which revokes the Box token and deletes it.
+- Authors use **Disconnect** in the plugin: for Box it revokes and deletes the token; for Firefly it deletes the stored sign-in.
 - Job records expire after 30 days.
 - Remove delivered renditions in AEM Assets under `AEM_TARGET_FOLDER`.
 
 ## Known limitations
 
 - Single Box connector, single store view, exact-SKU lookup, PNG/JPEG only, one workflow recipe.
-- The FFCPE request body and output names are configuration because the public docs don't specify them. Confirm them against your tenant before the first run.
+- MCP mode depends on the run-workflow MCP's sign-in and tool contract (`run_workflow_submit`, `run_workflow_get_status`), which may change; api mode is the stable route.
 - Insertion only; the plugin cannot read or replace existing blocks.
 - Price is not shown in the spotlight. The block links to the PDP, where pricing uses the storefront's customer context.

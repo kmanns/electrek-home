@@ -41,8 +41,9 @@ function world(overrides = {}) {
     ['POST', 'https://ffcpe.example/v1/batch/execute', () => (overrides.executeThrows ? new TypeError('socket hang up') : { status: 202, json: { batchId: 'batch-1', status: 'pending' } })],
     ['GET', 'https://ffcpe.example/v1/batch/batch-1/status', () => { batchPolls += 1; return { json: { status: batchPolls > 1 ? 'completed' : 'running' } }; }],
     ['GET', 'https://ffcpe.example/v1/batch/batch-1/executions', () => ({ json: { executions: [{ status: 'success', outputs: [
-      { name: 'spotlight-desktop', url: 'https://out.example/desktop.png' },
-      { name: 'spotlight-mobile', url: 'https://out.example/mobile.png' },
+      { nodeId: 'node_cutout', name: 'cutout.png', url: 'https://out.example/cutout.png' },
+      { nodeId: 'node_desktop', name: 'source-desktop-background_1200_896.jpg', url: 'https://out.example/desktop.png' },
+      { nodeId: 'node_mobile', name: 'source-mobile-background_896_1200.jpg', url: 'https://out.example/mobile.png' },
     ] }] } })],
     ['GET', 'https://out.example/desktop.png', () => ({ body: h.png(1600, 900) })],
     ['GET', 'https://out.example/mobile.png', () => ({ body: h.png(800, 1000) })],
@@ -132,7 +133,9 @@ describe('jobs', () => {
     expect(JSON.stringify(submitted)).not.toMatch(/files\.example|filePath/);
 
     const execCall = f.calls.find((c) => c.url.endsWith('/batch/execute'));
-    expect(JSON.parse(execCall.init.body)).toEqual({ workflowId: 'wf-1', inputs: [{ name: 'STIHL-BGA200', url: expect.stringMatching(/^https:\/\/files\.example\/ccs\/.+\/source\.png/) }] });
+    expect(JSON.parse(execCall.init.body)).toEqual({ workflow: { workflowId: 'wf-1', inputs: [[{ node_id: 'node_product', content: [{ presignedUrl: expect.stringMatching(/^https:\/\/files\.example\/ccs\/.+\/source\.png/) }] }]] } });
+    expect(execCall.init.headers['Idempotency-Key']).toBe(submitted.id);
+    expect(execCall.init.headers['x-gw-ims-org-id']).toBe('ORG@AdobeOrg');
 
     expect((await jobs.status(P, alice, submitted.id, f)).status).toBe('processing');
     const ready = await jobs.status(P, alice, submitted.id, f);

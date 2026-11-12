@@ -278,7 +278,7 @@ body {
   place-items: center;
   width: 48px;
   height: 48px;
-  border-radius: var(--spectrum-corner-radius-full, 50%);
+  border-radius: 50%;
   background: var(--spectrum-accent-color-100, var(--spectrum-gray-100));
   color: var(--spectrum-accent-color-900);
 }
@@ -392,7 +392,7 @@ body {
 
 .ccs-previews {
   display: grid;
-  grid-template-columns: 16fr 9fr;
+  grid-template-columns: 3fr 2fr;
   gap: var(--spectrum-spacing-200);
   align-items: start;
 }
@@ -418,14 +418,16 @@ body {
   object-fit: contain;
 }
 
-.ccs-preview.is-desktop img,
-.ccs-preview.is-desktop .ccs-preview-missing {
-  aspect-ratio: 16 / 9;
+.ccs-preview img {
+  height: auto;
 }
 
-.ccs-preview.is-mobile img,
+.ccs-preview.is-desktop .ccs-preview-missing {
+  aspect-ratio: 1200 / 896;
+}
+
 .ccs-preview.is-mobile .ccs-preview-missing {
-  aspect-ratio: 4 / 5;
+  aspect-ratio: 896 / 1200;
 }
 
 /* ---------- insert summary ---------- */

@@ -15,8 +15,10 @@ const crypto = require('crypto');
 const { AppError } = require('./http');
 const store = require('./store');
 const box = require('./box');
-const ffcpe = require('./ffcpe');
-const assets = require('./assets');
+const { engine } = require('./engines');
+const delivery = require('./delivery');
+const fireflyAuth = require('./firefly-auth');
+const { randomId } = require('./crypto');
 const { sniff } = require('./image');
 
 const TERMINAL = ['ready-for-review', 'accepted', 'render-failed', 'delivery-failed', 'cancelled', 'submit-uncertain'];
@@ -101,6 +103,9 @@ async function submit(params, user, body, fetchImpl = fetch) {
   const duplicate = await findActiveDuplicate(user, sku, source);
   if (duplicate) return view(duplicate);
 
+  // Fail fast (before any download or job record) when the author still has to connect Firefly.
+  if ((params.FFCPE_MODE || 'mcp') === 'mcp') await fireflyAuth.accessToken(params, user, fetchImpl);
+
   // Retrieve the exact selected file version (validates folder allow-list + type).
   const src = await box.downloadVersion(params, user, source.fileId, source.versionId, fetchImpl);
   const kind = sniff(src.bytes);
@@ -117,7 +122,8 @@ async function submit(params, user, body, fetchImpl = fetch) {
     source: {
       provider: 'box', fileId: String(source.fileId), versionId: String(source.versionId), name: src.name, sha1: src.sha1, width: kind.width, height: kind.height,
     },
-    recipe: { workflowId: params.FFCPE_WORKFLOW_ID, version: params.FFCPE_RECIPE_VERSION || '1' },
+    recipe: { workflowId: params.FFCPE_WORKFLOW_ID, version: params.FFCPE_RECIPE_VERSION || '1', mode: params.FFCPE_MODE || 'mcp' },
+    deliveryToken: randomId(12).replace(/[^a-zA-Z0-9]/g, '').slice(0, 10).toLowerCase(),
     status: 'queued',
     createdAt: now,
   };
@@ -132,8 +138,8 @@ async function submit(params, user, body, fetchImpl = fetch) {
 
   const sourceUrl = await files.generatePresignURL(job.source.filePath, { expiryInSeconds: SOURCE_URL_SECONDS, permissions: 'r' });
   try {
-    const { batchId } = await ffcpe.execute(params, {
-      sourceUrl, sku, jobId: id, productName: job.productName, sourceName: src.name,
+    const { batchId } = await engine(params).submit(params, user, {
+      sourceUrl, sku, jobId: id, productName: job.productName, sourceName: src.name, mimeType: kind.type,
     }, fetchImpl);
     job.batchId = batchId;
     job.status = 'processing';
@@ -160,10 +166,8 @@ async function status(params, user, jobId, fetchImpl = fetch) {
   const job = await load(user, jobId);
   if (TERMINAL.includes(job.status) || !job.batchId) return view(job);
 
-  const batch = await ffcpe.batchStatus(params, job.batchId, fetchImpl);
-  const terminalBatch = ['completed', 'failed', 'cancelled'].includes(String(batch?.status || batch?.batch?.status).toLowerCase());
-  const execs = terminalBatch ? await ffcpe.executions(params, job.batchId, fetchImpl) : null;
-  const result = ffcpe.interpret(batch, execs);
+  // A firefly-reauth error propagates: the author reconnects and the job is polled again unchanged.
+  const result = await engine(params).poll(params, user, job.batchId, fetchImpl);
 
   if (result.state !== 'rendered') {
     if (result.state !== job.status || result.message !== job.message) {
@@ -175,7 +179,7 @@ async function status(params, user, jobId, fetchImpl = fetch) {
   }
 
   try {
-    const placements = ffcpe.mapPlacements(params, execs);
+    const { placements } = result;
     const files = await store.getFiles();
     job.outputs = {};
     // eslint-disable-next-line no-restricted-syntax
@@ -186,7 +190,7 @@ async function status(params, user, jobId, fetchImpl = fetch) {
       // eslint-disable-next-line no-await-in-loop
       await files.write(filePath, bytes);
       job.outputs[p] = {
-        filePath, contentType: kind.type, width: kind.width, height: kind.height, outputName: placements[p].name,
+        filePath, contentType: kind.type, width: kind.width, height: kind.height, outputName: placements[p].name, nodeId: placements[p].nodeId,
       };
     }
     job.status = 'ready-for-review';
@@ -216,11 +220,12 @@ async function accept(params, user, jobId, fetchImpl = fetch) {
       // eslint-disable-next-line no-await-in-loop
       const bytes = await files.read(o.filePath);
       // eslint-disable-next-line no-await-in-loop
-      const delivered = await assets.deliver(params, {
-        sku: job.sku, jobId: job.id, placement: p, bytes, mimeType: o.contentType, title: `${job.productName || job.sku} — ${p}`,
+      const delivered = await delivery.deliver(params, {
+        sku: job.sku, jobId: job.id, placement: p, bytes, mimeType: o.contentType, title: `${job.productName || job.sku} — ${p}`, token: job.deliveryToken,
       }, fetchImpl);
       o.deliveryUrl = delivered.deliveryUrl;
       o.assetPath = delivered.assetPath;
+      o.deliveryMode = delivered.mode;
       // eslint-disable-next-line no-await-in-loop
       await save(job); // keep partial progress so a retry skips finished placements
     }

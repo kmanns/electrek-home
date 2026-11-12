@@ -11,6 +11,10 @@
 import { CS_FETCH_GRAPHQL, getProductLink } from '../../scripts/commerce.js';
 
 const DESKTOP_MQ = '(min-width: 900px)';
+// Default rendition geometry of the Creative Commerce Studio workflow. Used only to
+// reserve space before load (width/height per <source>); the real image ratio wins.
+const DESKTOP_SIZE = [1200, 896];
+const MOBILE_SIZE = [896, 1200];
 
 const PRODUCT_QUERY = `query CCS_SPOTLIGHT_PRODUCT($skus: [String]) {
   products(skus: $skus) { sku name urlKey }
@@ -82,8 +86,10 @@ function sized(url, width, format) {
   return url.href;
 }
 
-function source(url, media, width) {
+function source(url, media, width, [w, hgt]) {
   const el = document.createElement('source');
+  el.width = w;
+  el.height = hgt;
   if (isTransformable(url)) {
     el.srcset = sized(url, width, 'webp');
     el.type = 'image/webp';
@@ -98,17 +104,16 @@ function buildPicture(desktop, mobile, alt) {
   const picture = document.createElement('picture');
   const mobileUrl = mobile || desktop;
   const desktopUrl = desktop || mobile;
-  if (desktop && mobile) picture.append(source(desktopUrl, DESKTOP_MQ, 1600));
-  if (isTransformable(mobileUrl)) picture.append(source(mobileUrl, null, 900));
+  const fallbackSize = mobile ? MOBILE_SIZE : DESKTOP_SIZE;
+  if (desktop && mobile) picture.append(source(desktopUrl, DESKTOP_MQ, 1600, DESKTOP_SIZE));
+  if (isTransformable(mobileUrl)) picture.append(source(mobileUrl, null, 900, fallbackSize));
 
   const img = document.createElement('img');
   img.src = sized(mobileUrl, 900);
   img.alt = alt;
   img.loading = 'lazy';
   img.decoding = 'async';
-  // Illustrative placement geometry (mobile 4:5); reserves space to avoid layout shift.
-  img.width = 800;
-  img.height = 1000;
+  [img.width, img.height] = fallbackSize;
   picture.append(img);
   return picture;
 }
