@@ -23,7 +23,7 @@ const IMAGE_EXT = /\.(png|jpe?g)$/i;
 /** Job status -> sp-status-light variant + author-facing label. */
 const STATUS = {
   queued: ['neutral', 'Queued'],
-  processing: ['informative', 'Processing'],
+  processing: ['info', 'Processing'],
   'ready-for-review': ['positive', 'Ready for review'],
   accepted: ['positive', 'Delivered'],
   'render-failed': ['negative', 'Production failed'],
@@ -319,6 +319,9 @@ function onSelectFile(entry) {
 }
 
 let pollTimer = null;
+setInterval(() => {
+  if (state.step === 2 && state.job?.status === 'processing' && !document.activeElement?.closest?.('sp-textfield')) render();
+}, 5000);
 let pollDelay = 3000;
 
 function stopPolling() {
@@ -726,6 +729,34 @@ function renderSourceStep() {
   return section(title, null, ...children);
 }
 
+function elapsedText(startedAt) {
+  const ms = Date.now() - new Date(startedAt).getTime();
+  if (!Number.isFinite(ms) || ms < 0) return '';
+  const min = Math.floor(ms / 60000);
+  const sec = Math.floor((ms % 60000) / 1000);
+  return min ? `${min} min ${sec} s` : `${sec} s`;
+}
+
+/** Running-job progress: real percentage when the service reports steps, else indeterminate. */
+function renderProgress(job) {
+  if (job.status !== 'processing') return null;
+  const p = job.progress;
+  const known = p && Number.isFinite(p.percent);
+  const label = known && p.total ? `Step ${p.done} of ${p.total}` : 'Producing placements';
+  const bar = h('sp-progress-bar', {
+    class: 'ccs-progress',
+    size: 'm',
+    label,
+    indeterminate: !known,
+    progress: known ? p.percent : undefined,
+  });
+  const meta = [
+    job.startedAt ? `Running for ${elapsedText(job.startedAt)}` : null,
+    'Runs usually take a few minutes and can take up to about 10.',
+  ].filter(Boolean).join(' · ');
+  return h('div', { class: 'ccs-progress-wrap' }, bar, h('p', { class: 'ccs-detail', text: meta }));
+}
+
 function renderPrepareStep() {
   const { job } = state;
   const running = job && !TERMINAL.includes(job.status);
@@ -797,9 +828,10 @@ function renderPrepareStep() {
       h(
         'div',
         { class: 'ccs-row' },
-        running ? h('sp-progress-circle', { indeterminate: true, size: 's', label: 'Production running' }) : null,
+        running && job.status !== 'processing' ? h('sp-progress-circle', { indeterminate: true, size: 's', label: 'Waiting to start' }) : null,
         statusLight(job.status),
       ),
+      renderProgress(job),
       job.message ? h('p', { class: 'ccs-body', text: job.message }) : null,
       h('p', { class: 'ccs-detail', text: `Job ${job.id}` }),
     ));

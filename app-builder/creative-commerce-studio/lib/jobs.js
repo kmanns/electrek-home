@@ -73,6 +73,8 @@ async function view(job) {
     recipe: job.recipe,
     status: job.status,
     message: job.message || null,
+    progress: ACTIVE.includes(job.status) ? job.progress || null : null,
+    startedAt: job.startedAt || null,
     createdAt: job.createdAt,
     updatedAt: job.updatedAt,
     outputs: Object.keys(out).length ? out : null,
@@ -147,6 +149,7 @@ async function submit(params, user, body, fetchImpl = fetch) {
     } else {
       job.batchId = started.batchId;
       job.status = 'processing';
+      job.startedAt = new Date().toISOString();
     }
   } catch (e) {
     job.status = e.uncertain ? 'submit-uncertain' : 'render-failed';
@@ -175,9 +178,12 @@ async function status(params, user, jobId, fetchImpl = fetch) {
   const result = await engine(params).poll(params, user, job.batchId, fetchImpl);
 
   if (result.state !== 'rendered') {
-    if (result.state !== job.status || result.message !== job.message) {
+    const progress = result.progress || job.progress || null;
+    if (result.state !== job.status || result.message !== job.message
+      || JSON.stringify(progress) !== JSON.stringify(job.progress || null)) {
       job.status = result.state;
       job.message = result.message;
+      job.progress = progress;
       await save(job);
     }
     return view(job);
@@ -283,6 +289,7 @@ async function bridgeReport(params, report, fetchImpl = fetch) {
     job.batchId = String(report.batchId).slice(0, 200);
     job.status = 'processing';
     job.message = null;
+    job.startedAt = new Date().toISOString();
     await save(job);
     return { status: job.status };
   }
@@ -290,9 +297,11 @@ async function bridgeReport(params, report, fetchImpl = fetch) {
     const r = interpretMcpStatus(params, report.result);
     if (r.state === 'rendered') {
       await storeOutputs(job, r.placements, fetchImpl);
-    } else if (r.state !== job.status || r.message !== job.message) {
+    } else if (r.state !== job.status || r.message !== job.message
+      || JSON.stringify(r.progress || null) !== JSON.stringify(job.progress || null)) {
       job.status = r.state;
       job.message = r.message || null;
+      job.progress = r.progress || job.progress || null;
       await save(job);
     }
     return { status: job.status };

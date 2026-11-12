@@ -29,14 +29,25 @@
   overflow-wrap: anywhere;
 }
 
-.creative-product-spotlight-content h2 {
-  margin: 0 0 var(--spacing-small, 16px);
+/* The block carries its own cream surface, so it keeps its own type colours in any
+   section (e.g. Section Metadata "Navy" turns headings cream; that must not apply here). */
+main .section .creative-product-spotlight .creative-product-spotlight-content h2 {
+  margin: 0 0 var(--spacing-medium, 24px);
   color: var(--color-blue-primary, #041e42);
+  font-family: var(--type-display-font-family);
+  font-size: clamp(3.6rem, 2.4rem + 3vw, 5.6rem);
+  font-weight: 700;
+  line-height: 1.05;
+  letter-spacing: 0.01em;
+  text-wrap: balance;
 }
 
-.creative-product-spotlight-description p {
+main .section .creative-product-spotlight .creative-product-spotlight-description p {
   margin: 0 0 var(--spacing-small, 16px);
-  color: var(--color-text, #16181d);
+  color: var(--color-blue-primary, #041e42);
+  font-size: clamp(2rem, 1.7rem + 0.6vw, 2.4rem);
+  line-height: 1.4;
+  text-wrap: pretty;
 }
 
 .creative-product-spotlight-cta {

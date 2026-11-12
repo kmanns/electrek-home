@@ -20,6 +20,7 @@ import '@spectrum-web-components/field-label/sp-field-label.js';
 import '@spectrum-web-components/help-text/sp-help-text.js';
 import '@spectrum-web-components/link/sp-link.js';
 import '@spectrum-web-components/progress-circle/sp-progress-circle.js';
+import '@spectrum-web-components/progress-bar/sp-progress-bar.js';
 import '@spectrum-web-components/radio/sp-radio.js';
 import '@spectrum-web-components/radio/sp-radio-group.js';
 import '@spectrum-web-components/status-light/sp-status-light.js';

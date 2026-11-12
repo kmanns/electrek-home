@@ -198,3 +198,18 @@ describe('hosted Firefly sign-in refusal', () => {
       .rejects.toMatchObject({ code: 'firefly-signin-not-allowed', message: expect.stringMatching(/only lets local tools/) });
   });
 });
+
+describe('bridge progress', () => {
+  test('running status with steps shows up as job progress for the author', async () => {
+    const f = boxWorld();
+    await connectBox(alice, f);
+    const job = await jobs.submit(P, alice, body(), f);
+    await jobs.bridgeNext(P);
+    await jobs.bridgeReport(P, { jobId: job.id, batchId: 'batch-1' });
+    await jobs.bridgeReport(P, { jobId: job.id, result: { status: 'running', actions: Array.from({ length: 13 }, (_, i) => ({ status: i < 7 ? 'completed' : 'pending' })) } });
+    const view = await jobs.status(P, alice, job.id, f);
+    expect(view).toMatchObject({ status: 'processing', progress: { percent: 54, done: 7, total: 13 }, startedAt: expect.any(String) });
+    await jobs.bridgeReport(P, { jobId: job.id, result: completed }, f);
+    expect((await jobs.status(P, alice, job.id, f)).progress).toBeNull();
+  });
+});

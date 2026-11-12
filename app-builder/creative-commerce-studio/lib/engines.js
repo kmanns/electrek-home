@@ -100,10 +100,67 @@ function normalizeState(raw) {
   return 'processing';
 }
 
+const DONE_STEP = /^(completed?|success|succeeded|done|finished|skipped)$/i;
+const STEP_ARRAY_KEYS = /^(actions|steps|nodes|tasks|actionStatuses|actionResults|actionRuns|executionActions)$/;
+
+/** Depth-first search for the first finite number under any of the given keys. */
+function findNumber(node, keys, depth = 0) {
+  if (!node || typeof node !== 'object' || depth > 8) return undefined;
+  // eslint-disable-next-line no-restricted-syntax
+  for (const k of keys) {
+    const v = node[k];
+    if (typeof v === 'number' && Number.isFinite(v)) return v;
+  }
+  // eslint-disable-next-line no-restricted-syntax
+  for (const v of Object.values(node)) {
+    const found = findNumber(v, keys, depth + 1);
+    if (found !== undefined) return found;
+  }
+  return undefined;
+}
+
+/** Largest array of step objects that carry a status, anywhere in the payload. */
+function findStepArray(node, depth = 0, best = null) {
+  if (!node || typeof node !== 'object' || depth > 8) return best;
+  let winner = best;
+  Object.entries(node).forEach(([k, v]) => {
+    if (Array.isArray(v) && STEP_ARRAY_KEYS.test(k) && v.length && v.every((i) => i && typeof i === 'object' && (i.status || i.state))) {
+      if (!winner || v.length > winner.length) winner = v;
+    }
+    if (v && typeof v === 'object') winner = findStepArray(v, depth + 1, winner);
+  });
+  return winner;
+}
+
+/**
+ * Best-effort progress for a running workflow: explicit percentage if the service
+ * sends one, otherwise completed/total workflow steps. Returns null when unknown.
+ */
+function extractProgress(body) {
+  let done;
+  let total;
+  const steps = findStepArray(body);
+  if (steps) {
+    total = steps.length;
+    done = steps.filter((s) => DONE_STEP.test(String(s.status || s.state))).length;
+  } else {
+    done = findNumber(body, ['completedActions', 'completedSteps', 'actionsCompleted', 'stepsCompleted']);
+    total = findNumber(body, ['totalActions', 'totalSteps', 'actionsTotal', 'stepsTotal', 'actionCount']);
+  }
+  let percent = findNumber(body, ['progressPercent', 'percentComplete', 'completionPercentage', 'percentage', 'percent', 'progress']);
+  if (percent !== undefined && percent > 0 && percent <= 1 && !Number.isInteger(percent)) percent *= 100;
+  if (percent === undefined && Number.isFinite(done) && Number.isFinite(total) && total > 0) percent = (done / total) * 100;
+  if (percent === undefined || !Number.isFinite(percent)) return null;
+  return {
+    percent: Math.max(0, Math.min(99, Math.round(percent))), // never 100% until the job is reviewable
+    ...(Number.isFinite(done) && Number.isFinite(total) && total > 0 ? { done, total } : {}),
+  };
+}
+
 /** Interprets a run_workflow_get_status payload (used by the MCP engine and the bridge). */
 function interpretMcpStatus(params, body) {
   const state = normalizeState(findValue(body, ['status', 'state', 'runtimeStatus']));
-  if (state === 'queued' || state === 'processing') return { state };
+  if (state === 'queued' || state === 'processing') return { state, progress: extractProgress(body) };
   if (state === 'cancelled') return { state: 'cancelled', message: 'The Firefly run was cancelled.' };
   if (state === 'failed') return { state: 'render-failed', message: collectErrors(body)[0] || 'The Firefly workflow failed.' };
   const mapped = placementsFrom(params, body);
@@ -182,7 +239,7 @@ const apiEngine = {
   async poll(params, user, batchId, fetchImpl) {
     const batch = await ffcpe.batchStatus(params, batchId, fetchImpl);
     const s = normalizeState(batch?.status || batch?.batch?.status);
-    if (s === 'queued' || s === 'processing') return { state: s };
+    if (s === 'queued' || s === 'processing') return { state: s, progress: extractProgress(batch) };
     const execs = await ffcpe.executions(params, batchId, fetchImpl);
     if (s === 'cancelled') return { state: 'cancelled', message: 'The Firefly batch was cancelled.' };
     if (s === 'failed') return { state: 'render-failed', message: collectErrors(execs)[0] || 'The Firefly workflow failed.' };
@@ -213,4 +270,5 @@ module.exports = {
   placementsFrom,
   normalizeState,
   interpretMcpStatus,
+  extractProgress,
 };
