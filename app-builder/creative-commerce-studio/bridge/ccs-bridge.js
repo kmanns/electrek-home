@@ -307,7 +307,7 @@ async function run() {
     } catch (e) {
       console.error(`[${new Date().toLocaleTimeString()}] ${e.message}`);
       if (/token rejected/i.test(e.message)) {
-        console.error('The BRIDGE_TOKEN in .env does not match the deployed backend. Run "aio app deploy" after any change to .env, then start the bridge again.');
+        console.error('The BRIDGE_TOKEN in .env does not match the deployed backend. Run "aio app deploy --force-deploy" (a plain deploy can skip unchanged actions), then start the bridge again.');
       }
       if (e.fatal) process.exit(1);
     }
