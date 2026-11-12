@@ -10,26 +10,25 @@ This recipe is built in **Firefly Creative Production** (Firefly web → Creativ
 | 2 | Remove background | Skip if your packshots are already transparent. |
 | 3 | Photoshop template merge — **desktop** | PSD 1600×900, smart object layer named `product`, approved background layer, product fit "contain" with safe margins. No baked-in text, price or CTA. |
 | 4 | Photoshop template merge — **mobile** | PSD 800×1000, same layer names. Compose intentionally; do not center-crop the desktop. |
-| 5 | Export | JPEG (quality ~85) or PNG. **Output names must contain `desktop` and `mobile`** (or change `FFCPE_OUTPUT_MATCH`). |
+| 5 | Export | JPEG (quality ~85) or PNG. The backend picks outputs by **node ID** (`FFCPE_DESKTOP_NODE_ID`, `FFCPE_MOBILE_NODE_ID`), so output file names don't matter. |
 
-Prefer two simple templates over a multi-artboard file until you have confirmed how many outputs it produces and how they are named.
+Prefer two simple templates over a multi-artboard file until you have confirmed how many outputs it produces.
 
 ## Publish and record the contract
 
 1. Validate the workflow on one authorized packshot and inspect both outputs: whole product visible, clean edges, no distortion, correct size.
-2. Publish the workflow and note its **workflow ID** → `FFCPE_WORKFLOW_ID`.
-3. In Adobe Developer Console, add an **OAuth Server-to-Server** credential with the Firefly Creative Production / Firefly Services API to your App Builder project → `FFCPE_CLIENT_ID`, `FFCPE_CLIENT_SECRET`. The documented scopes are `openid,AdobeID,session,additional_info,read_organizations,firefly_api,ff_apis`.
-4. Open the **authenticated Workflow API reference** for your tenant and record:
-   - the base URL → `FFCPE_API_BASE`
-   - the `POST /batch/execute` body (how a workflow input and its URL are named) → `FFCPE_EXECUTE_TEMPLATE`
-   - where outputs appear in `GET /batch/{batchId}/executions` (the backend collects every `https` `url`/`href` with its `name`)
+2. Publish the workflow and note its **workflow ID** (`FFCPE_WORKFLOW_ID`).
+3. From the published workflow's **Execute Graph (cURL)** snippet, note the `node_id` of the product image input (`FFCPE_PRODUCT_NODE_ID`). Note the node IDs of the desktop and mobile composite nodes as well (`FFCPE_DESKTOP_NODE_ID`, `FFCPE_MOBILE_NODE_ID`). Inputs you don't send keep the workflow's published defaults.
+4. Choose how the backend runs it (see the main README):
+   - `FFCPE_MODE=mcp`: authors sign in with their own Adobe account via **Connect Firefly**. No credential needed.
+   - `FFCPE_MODE=api`: add an **OAuth Server-to-Server** credential for the Firefly Services / Creative Production API (`FFCPE_CLIENT_ID`, `FFCPE_CLIENT_SECRET`, `FFCPE_IMS_ORG_ID`). The documented scopes are `openid,AdobeID,session,additional_info,read_organizations,firefly_api,ff_apis`. The REST contract is published at `https://run-workflow.adobe.io/openapi.json`.
 5. Run one small authorized job (it may be billable) and confirm the plugin reaches **ready-for-review**.
 
-`FFCPE_EXECUTE_TEMPLATE` placeholders: `{{workflowId}}`, `{{sourceUrl}}`, `{{sku}}`, `{{jobId}}`, `{{productName}}`, `{{sourceName}}`. Values are JSON-escaped. An unknown placeholder fails the job before anything is sent.
+Optional `FFCPE_EXECUTE_TEMPLATE` (api mode) placeholders: `{{workflowId}}`, `{{productNodeId}}`, `{{sourceUrl}}`, `{{sku}}`, `{{jobId}}`, `{{productName}}`, `{{sourceName}}`. Values are JSON-escaped. An unknown placeholder fails the job before anything is sent.
 
 ## Tested versions
 
-Not yet run end-to-end. Record the node versions, API version (`api-version` header, default `1.0`) and date here after the first successful run.
+- 2026-11-12: "Creative Commerce Studio - Product Spotlights" (`ddcda008-3dd4-4d28-875b-dc8148fbc814`) ran successfully through the run-workflow MCP (`run_workflow_submit` / `run_workflow_get_status`) with one product URL override. It returned a PNG cutout plus desktop (1200×896) and mobile (896×1200) JPEG composites as signed links valid for about 1 hour. Output names came from the background image, so match by node ID. The backend's own sign-in has not yet been run live.
 
 ## Sharing this workflow
 

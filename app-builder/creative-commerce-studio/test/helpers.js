@@ -16,6 +16,7 @@ const filesMock = {
   write: async (p, b) => { filesData.set(p, Buffer.from(b)); },
   read: async (p) => filesData.get(p),
   generatePresignURL: async (p) => `https://files.example/${p}?sig=abc`,
+  getProperties: async (p) => ({ url: `https://pub.blob.core.windows.net/container-public/${p}`, isPublic: p.startsWith('public/') }),
 };
 
 function reset() {
@@ -61,12 +62,16 @@ const PARAMS = {
   BOX_CLIENT_SECRET: 'box-secret',
   BOX_REDIRECT_URI: 'https://ns.adobeioruntime.net/api/v1/web/creative-commerce-studio/box-auth-callback',
   BOX_ALLOWED_FOLDER_ID: '100',
+  FFCPE_MODE: 'api',
   FFCPE_API_BASE: 'https://ffcpe.example/v1',
   FFCPE_WORKFLOW_ID: 'wf-1',
   FFCPE_CLIENT_ID: 'ff-client',
   FFCPE_CLIENT_SECRET: 'ff-secret',
-  FFCPE_EXECUTE_TEMPLATE: '{"workflowId":"{{workflowId}}","inputs":[{"name":"{{sku}}","url":"{{sourceUrl}}"}]}',
-  FFCPE_OUTPUT_MATCH: '{"desktop":"desktop","mobile":"mobile"}',
+  FFCPE_IMS_ORG_ID: 'ORG@AdobeOrg',
+  FFCPE_PRODUCT_NODE_ID: 'node_product',
+  FFCPE_DESKTOP_NODE_ID: 'node_desktop',
+  FFCPE_MOBILE_NODE_ID: 'node_mobile',
+  FIREFLY_REDIRECT_URI: 'https://ns.adobeioruntime.net/api/v1/web/creative-commerce-studio/firefly-auth-callback',
   AEM_AUTHOR_URL: 'https://author-p1-e2.adobeaemcloud.com',
   AEM_DELIVERY_URL: 'https://delivery-p1-e2.adobeaemcloud.com',
   AEM_CLIENT_ID: 'aem-client',

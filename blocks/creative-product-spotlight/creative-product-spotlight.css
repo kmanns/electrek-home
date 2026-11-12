@@ -21,8 +21,6 @@
   display: block;
   width: 100%;
   height: auto;
-  aspect-ratio: 4 / 5;
-  object-fit: cover;
 }
 
 .creative-product-spotlight-content {
@@ -61,10 +59,6 @@
 
   .creative-product-spotlight.no-media {
     grid-template-columns: 1fr;
-  }
-
-  .creative-product-spotlight-media img {
-    aspect-ratio: 16 / 9;
   }
 
   .creative-product-spotlight-content {

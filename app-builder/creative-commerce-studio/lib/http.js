@@ -60,11 +60,26 @@ function readBody(params) {
 }
 
 /**
+ * Drops unresolved manifest placeholders ("$NAME" when a .env line is missing)
+ * so built-in defaults apply instead of a literal "$NAME".
+ */
+function cleanParams(params) {
+  const out = {};
+  Object.entries(params || {}).forEach(([k, v]) => {
+    if (typeof v === 'string' && /^\$[A-Z][A-Z0-9_]*$/.test(v)) return;
+    if (v === '') return;
+    out[k] = v;
+  });
+  return out;
+}
+
+/**
  * Wraps an action handler with CORS preflight, origin check and error handling.
  * handler(params, body) -> body object
  */
 function webAction(handler) {
-  return async function main(params) {
+  return async function main(rawParams) {
+    const params = cleanParams(rawParams);
     const method = (params.__ow_method || 'post').toLowerCase();
     if (method === 'options') return { statusCode: 204, headers: corsHeaders(params) };
     try {
@@ -82,5 +97,5 @@ function webAction(handler) {
 }
 
 module.exports = {
-  AppError, webAction, json, corsHeaders, allowedOrigins, readBody,
+  AppError, webAction, cleanParams, json, corsHeaders, allowedOrigins, readBody,
 };

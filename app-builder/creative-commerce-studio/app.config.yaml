@@ -16,15 +16,26 @@ application:
           BOX_CLIENT_SECRET: $BOX_CLIENT_SECRET
           BOX_REDIRECT_URI: $BOX_REDIRECT_URI
           BOX_ALLOWED_FOLDER_ID: $BOX_ALLOWED_FOLDER_ID
+          FFCPE_MODE: $FFCPE_MODE
+          FFCPE_MCP_URL: $FFCPE_MCP_URL
+          FIREFLY_REDIRECT_URI: $FIREFLY_REDIRECT_URI
+          FIREFLY_CLIENT_NAME: $FIREFLY_CLIENT_NAME
+          FIREFLY_SCOPE: $FIREFLY_SCOPE
+          FFCPE_TOOL_SUBMIT: $FFCPE_TOOL_SUBMIT
+          FFCPE_TOOL_STATUS: $FFCPE_TOOL_STATUS
+          FFCPE_PRODUCT_NODE_ID: $FFCPE_PRODUCT_NODE_ID
+          FFCPE_DESKTOP_NODE_ID: $FFCPE_DESKTOP_NODE_ID
+          FFCPE_MOBILE_NODE_ID: $FFCPE_MOBILE_NODE_ID
           FFCPE_API_BASE: $FFCPE_API_BASE
-          FFCPE_API_VERSION: $FFCPE_API_VERSION
+          FFCPE_IMS_ORG_ID: $FFCPE_IMS_ORG_ID
+          FFCPE_IMS_USER_ID: $FFCPE_IMS_USER_ID
           FFCPE_WORKFLOW_ID: $FFCPE_WORKFLOW_ID
           FFCPE_RECIPE_VERSION: $FFCPE_RECIPE_VERSION
           FFCPE_CLIENT_ID: $FFCPE_CLIENT_ID
           FFCPE_CLIENT_SECRET: $FFCPE_CLIENT_SECRET
           FFCPE_SCOPES: $FFCPE_SCOPES
           FFCPE_EXECUTE_TEMPLATE: $FFCPE_EXECUTE_TEMPLATE
-          FFCPE_OUTPUT_MATCH: $FFCPE_OUTPUT_MATCH
+          DELIVERY_MODE: $DELIVERY_MODE
           AEM_AUTHOR_URL: $AEM_AUTHOR_URL
           AEM_DELIVERY_URL: $AEM_DELIVERY_URL
           AEM_CLIENT_ID: $AEM_CLIENT_ID
@@ -57,6 +68,26 @@ application:
             annotations: *web
           box-disconnect:
             function: actions/box-disconnect/index.js
+            web: 'yes'
+            runtime: nodejs:22
+            annotations: *web
+          firefly-status:
+            function: actions/firefly-status/index.js
+            web: 'yes'
+            runtime: nodejs:22
+            annotations: *web
+          firefly-auth-start:
+            function: actions/firefly-auth-start/index.js
+            web: 'yes'
+            runtime: nodejs:22
+            annotations: *web
+          firefly-auth-callback:
+            function: actions/firefly-auth-callback/index.js
+            web: 'yes'
+            runtime: nodejs:22
+            annotations: *web
+          firefly-disconnect:
+            function: actions/firefly-disconnect/index.js
             web: 'yes'
             runtime: nodejs:22
             annotations: *web

@@ -45,6 +45,9 @@ const state = {
   box: {
     checked: false, connected: false, user: null, error: null,
   },
+  firefly: {
+    checked: false, connected: false, mode: null, error: null,
+  },
   folder: null, // { id, name, parentId, entries: [] }
   file: null, // { id, name, versionId, size, thumbnail }
   confirmed: false,
@@ -112,6 +115,9 @@ function statusLight(status) {
 function errorText(err) {
   if (err instanceof BackendError && err.code === 'box-reauth') {
     return 'Your Box connection expired or was revoked. Reconnect Box to continue.';
+  }
+  if (err instanceof BackendError && err.code === 'firefly-reauth') {
+    return 'Connect Firefly (again) to run production.';
   }
   return err?.message || 'Something went wrong.';
 }
@@ -189,42 +195,98 @@ async function refreshBox() {
   }
 }
 
+/**
+ * Opens a provider sign-in window and resolves when it reports back (or closes).
+ * Messages are only accepted from the backend origin.
+ */
+async function signInPopup(authorizeUrl, provider, label) {
+  const popup = window.open(authorizeUrl, `ccs-${provider}-auth`, 'popup,width=520,height=720');
+  if (!popup) throw new Error(`The ${label} sign-in window was blocked. Allow pop-ups for this page and try again.`);
+  const backendOrigin = await state.backend.origin();
+  await new Promise((resolve) => {
+    const watch = { timer: null, onMessage: null };
+    const done = () => {
+      window.removeEventListener('message', watch.onMessage);
+      clearInterval(watch.timer);
+      resolve();
+    };
+    watch.onMessage = (msg) => {
+      if (msg.origin !== backendOrigin) return;
+      const { type } = msg.data || {};
+      if ((type === 'ccs-auth' && msg.data.provider === provider) || (provider === 'box' && type === 'ccs-box-auth')) done();
+    };
+    window.addEventListener('message', watch.onMessage);
+    watch.timer = setInterval(() => { if (popup.closed) done(); }, 750);
+  });
+}
+
+/** Sign-in pages may sever window.opener (COOP), so confirm via the backend for up to ~1 min. */
+async function confirmConnected(refresh, isConnected) {
+  for (let i = 0; i < 20; i += 1) {
+    // eslint-disable-next-line no-await-in-loop
+    await refresh();
+    if (isConnected()) return;
+    render();
+    // eslint-disable-next-line no-await-in-loop
+    await new Promise((r) => { setTimeout(r, 3000); });
+  }
+}
+
 async function onConnectBox() {
   state.busy = true;
   render();
   try {
     const { authorizeUrl } = await state.backend.boxAuthStart();
-    const popup = window.open(authorizeUrl, 'ccs-box-auth', 'popup,width=520,height=700');
-    if (!popup) throw new Error('The Box sign-in window was blocked. Allow pop-ups for this page and try again.');
-    const backendOrigin = await state.backend.origin();
-    await new Promise((resolve) => {
-      const watch = { timer: null, onMessage: null };
-      const done = () => {
-        window.removeEventListener('message', watch.onMessage);
-        clearInterval(watch.timer);
-        resolve();
-      };
-      watch.onMessage = (msg) => {
-        if (msg.origin === backendOrigin && msg.data?.type === 'ccs-box-auth') done();
-      };
-      window.addEventListener('message', watch.onMessage);
-      watch.timer = setInterval(() => { if (popup.closed) done(); }, 750);
-    });
-    // Box pages may sever window.opener (COOP), so confirm via the backend for up to ~1 min.
-    for (let i = 0; i < 20; i += 1) {
-      // eslint-disable-next-line no-await-in-loop
-      await refreshBox();
-      if (state.box.connected) break;
-      render();
-      // eslint-disable-next-line no-await-in-loop
-      await new Promise((r) => { setTimeout(r, 3000); });
-    }
+    await signInPopup(authorizeUrl, 'box', 'Box');
+    await confirmConnected(refreshBox, () => state.box.connected);
   } catch (e) {
     state.box.error = errorText(e);
   } finally {
     state.busy = false;
     render();
   }
+}
+
+async function refreshFirefly() {
+  if (!state.backendConfigured || !state.sdk) return;
+  try {
+    const status = await state.backend.fireflyStatus();
+    state.firefly = {
+      checked: true, connected: !!status.connected, mode: status.mode || 'mcp', error: null,
+    };
+  } catch (e) {
+    state.firefly = {
+      checked: true, connected: false, mode: null, error: errorText(e),
+    };
+  }
+}
+
+async function onConnectFirefly() {
+  state.busy = true;
+  render();
+  try {
+    const { authorizeUrl } = await state.backend.fireflyAuthStart();
+    await signInPopup(authorizeUrl, 'firefly', 'Adobe Firefly');
+    await confirmConnected(refreshFirefly, () => state.firefly.connected);
+  } catch (e) {
+    state.firefly.error = errorText(e);
+  } finally {
+    state.busy = false;
+    render();
+  }
+}
+
+async function onDisconnectFirefly() {
+  state.busy = true;
+  render();
+  try {
+    await state.backend.fireflyDisconnect();
+  } catch (e) { /* show disconnected either way */ }
+  state.firefly = {
+    checked: true, connected: false, mode: state.firefly.mode, error: null,
+  };
+  state.busy = false;
+  render();
 }
 
 async function onDisconnectBox() {
@@ -270,6 +332,7 @@ async function pollJob(jobId) {
       pollTimer = setTimeout(() => pollJob(jobId), job.retryAfterMs || pollDelay);
     }
   } catch (e) {
+    if (e.code === 'firefly-reauth') state.firefly.connected = false;
     state.jobError = errorText(e);
     // keep the job; the author can refresh status without resubmitting
   }
@@ -295,6 +358,7 @@ async function onSubmitJob() {
     pollDelay = 3000;
     pollJob(job.id);
   } catch (e) {
+    if (e.code === 'firefly-reauth') state.firefly.connected = false;
     state.jobError = errorText(e);
   } finally {
     state.busy = false;
@@ -397,6 +461,7 @@ function goTo(step) {
   state.step = step;
   setNotice(null);
   render();
+  if (step === 2 && !state.firefly.checked) refreshFirefly().then(render);
 }
 
 /* ---------- views ---------- */
@@ -661,10 +726,36 @@ function renderPrepareStep() {
       'ol',
       { class: 'ccs-recipe' },
       h('li', { text: 'Remove background' }),
-      h('li', { text: 'Place in desktop layout (16:9)' }),
-      h('li', { text: 'Place in mobile layout (4:5)' }),
+      h('li', { text: 'Place in the desktop layout' }),
+      h('li', { text: 'Place in the mobile layout' }),
     ),
   ];
+  const ff = state.firefly;
+  const needsFirefly = ff.mode !== 'api' && !ff.connected;
+  if (ff.error) children.push(alert('negative', null, ff.error));
+  if (!ff.checked && state.sdk && state.backendConfigured) {
+    children.push(h('div', { class: 'ccs-loading' }, h('sp-progress-circle', { indeterminate: true, size: 's', label: 'Checking Firefly connection' }), 'Checking your Firefly connection…'));
+  } else if (needsFirefly) {
+    children.push(h(
+      'div',
+      { class: 'ccs-empty' },
+      h('span', { class: 'ccs-empty-icon', 'aria-hidden': 'true' }, icon('magic-wand')),
+      h('p', { class: 'ccs-strong', text: 'Connect Adobe Firefly' }),
+      h('p', { class: 'ccs-body', text: 'Sign in with the Adobe account that can run your Firefly Creative Production workflows. Runs use your own Firefly access.' }),
+      button('Connect Firefly', {
+        variant: 'accent', pending: state.busy, disabled: !state.sdk || !state.backendConfigured, onClick: onConnectFirefly,
+      }),
+    ));
+  } else if (ff.mode === 'mcp') {
+    children.push(h(
+      'div',
+      { class: 'ccs-row' },
+      h('sp-status-light', { variant: 'positive', size: 's', text: 'Firefly connected' }),
+      h('sp-action-button', {
+        size: 's', quiet: true, disabled: state.busy, onClick: onDisconnectFirefly,
+      }, 'Disconnect'),
+    ));
+  }
   if (job && !jobMatchesSelection(job)) {
     children.push(alert('notice', 'Selection changed', 'The product or source changed since this job started. Run production again for the current selection.'));
   }
@@ -691,7 +782,7 @@ function renderPrepareStep() {
       variant: 'accent',
       iconName: 'magic-wand',
       pending: state.busy,
-      disabled: !state.confirmed,
+      disabled: !state.confirmed || needsFirefly,
       onClick: () => {
         // eslint-disable-next-line no-alert
         if (uncertain && !window.confirm('The previous run may still be processing in Firefly. Start another (possibly billable) run?')) return;
@@ -733,7 +824,9 @@ function renderReviewStep() {
     'figure',
     { class: `ccs-preview ${cls}` },
     o
-      ? h('img', { src: accepted ? o.deliveryUrl : o.previewUrl, alt: `${label} output` })
+      ? h('img', {
+        src: accepted ? o.deliveryUrl : o.previewUrl, alt: `${label} output`, width: o.width || undefined, height: o.height || undefined,
+      })
       : h('div', { class: 'ccs-preview-missing' }, icon('image')),
     h('figcaption', { class: 'ccs-detail', text: o ? `${label} · ${o.width || '?'}×${o.height || '?'}` : `No ${label.toLowerCase()} output` }),
   );
@@ -862,6 +955,7 @@ async function init() {
       state.recent = (await state.backend.jobRecent()).jobs || [];
     } catch (e) { /* recent jobs are a convenience */ }
     await refreshBox();
+    await refreshFirefly();
     render();
   }
 }
