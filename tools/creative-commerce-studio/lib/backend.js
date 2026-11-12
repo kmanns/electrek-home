@@ -70,13 +70,14 @@ export function createBackend(getToken) {
       const base = await getBackendUrl();
       return base ? new URL(base).origin : null;
     },
+    sourcesStatus: () => call('sources-status'),
     boxStatus: () => call('box-status'),
-    boxAuthStart: () => call('box-auth-start'),
-    boxDisconnect: () => call('box-disconnect'),
+    sourceAuthStart: (provider) => call(`${provider}-auth-start`),
+    sourceDisconnect: (provider) => call(`${provider}-disconnect`),
+    sourceFiles: (provider, folderId) => call(`${provider}-files`, { folderId }),
     fireflyStatus: () => call('firefly-status'),
     fireflyAuthStart: () => call('firefly-auth-start'),
     fireflyDisconnect: () => call('firefly-disconnect'),
-    boxFiles: (folderId) => call('box-files', { folderId }),
     jobSubmit: (payload) => call('job-submit', payload),
     jobStatus: (jobId) => call('job-status', { jobId }),
     jobAccept: (jobId) => call('job-accept', { jobId }),

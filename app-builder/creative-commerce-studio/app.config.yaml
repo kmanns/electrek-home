@@ -16,6 +16,10 @@ application:
           BOX_CLIENT_SECRET: $BOX_CLIENT_SECRET
           BOX_REDIRECT_URI: $BOX_REDIRECT_URI
           BOX_ALLOWED_FOLDER_ID: $BOX_ALLOWED_FOLDER_ID
+          GDRIVE_CLIENT_ID: $GDRIVE_CLIENT_ID
+          GDRIVE_CLIENT_SECRET: $GDRIVE_CLIENT_SECRET
+          GDRIVE_REDIRECT_URI: $GDRIVE_REDIRECT_URI
+          GDRIVE_ALLOWED_FOLDER_ID: $GDRIVE_ALLOWED_FOLDER_ID
           FFCPE_MODE: $FFCPE_MODE
           BRIDGE_TOKEN: $BRIDGE_TOKEN
           FFCPE_MCP_URL: $FFCPE_MCP_URL
@@ -69,6 +73,38 @@ application:
             annotations: *web
           box-disconnect:
             function: actions/box-disconnect/index.js
+            web: 'yes'
+            runtime: nodejs:22
+            annotations: *web
+          sources-status:
+            function: actions/sources-status/index.js
+            web: 'yes'
+            runtime: nodejs:22
+            annotations: *web
+          gdrive-status:
+            function: actions/gdrive-status/index.js
+            web: 'yes'
+            runtime: nodejs:22
+            annotations: *web
+          gdrive-auth-start:
+            function: actions/gdrive-auth-start/index.js
+            web: 'yes'
+            runtime: nodejs:22
+            annotations: *web
+          gdrive-auth-callback:
+            function: actions/gdrive-auth-callback/index.js
+            web: 'yes'
+            runtime: nodejs:22
+            annotations: *web
+          gdrive-files:
+            function: actions/gdrive-files/index.js
+            web: 'yes'
+            runtime: nodejs:22
+            limits:
+              timeout: 120000
+            annotations: *web
+          gdrive-disconnect:
+            function: actions/gdrive-disconnect/index.js
             web: 'yes'
             runtime: nodejs:22
             annotations: *web

@@ -26,7 +26,8 @@ Author flow: **Product → Source → Prepare → Review → Insert**. The plugi
 | Spotlight block | Built and browser-tested: desktop/mobile, missing SKU, reduced motion, long copy |
 | Workspace plugin | Built and tested in a simulated Workspace frame with a mocked backend |
 | App Builder actions | Built, unit-tested (`npm test`, 33 tests). Stage deploy with Box verified in Workspace |
-| Box | Connect + folder listing verified in Workspace (2026-11-11) |
+| Box | Connect + folder listing verified in Workspace (2026-11-11); end-to-end runs 2026-11-13 |
+| Google Drive | Built and unit/browser-tested with mocks (2026-11-13); needs a Google OAuth client to run live |
 | FFCPE | Workflow contract verified with a real MCP run (2026-11-12). Hosted sign-in refused by Adobe policy; **demo runs via the local bridge**; production needs the api credential |
 | Product Visuals | Needs an AEM server-to-server credential; until then delivery uses App Builder public storage |
 
@@ -46,6 +47,19 @@ Author flow: **Product → Source → Prepare → Review → Insert**. The plugi
 4. Copy the client ID and secret into your App Builder `.env`, never into chat or git.
 5. Create a campaign folder, add authorized packshots, and put its numeric ID (from the folder URL) in `BOX_ALLOWED_FOLDER_ID`. Authors can browse only this folder and its subfolders.
 6. If your Box enterprise restricts third-party apps, a Box admin must authorize the app.
+
+## 1b. Google Drive (optional second source)
+
+Authors pick **Box** or **Google Drive** on the Source step. Drive is offered only when all four `GDRIVE_*` settings are set. It follows the same rules as Box: read-only, one allowed folder tree, the exact revision is sent to Firefly, and tokens are encrypted per author.
+
+1. In **Google Cloud Console** (console.cloud.google.com), create or select a project, then **APIs & Services → Library → Google Drive API → Enable**.
+2. **OAuth consent screen**: user type **External**, publishing status **Testing**. Add the scope `…/auth/drive.readonly` and add your Google account under **Test users**.
+3. **Credentials → Create credentials → OAuth client ID → Web application**. Under **Authorized redirect URIs**, add `https://<namespace>.adobeioruntime.net/api/v1/web/creative-commerce-studio/gdrive-auth-callback`.
+4. Put the client ID and secret into `.env` as `GDRIVE_CLIENT_ID` / `GDRIVE_CLIENT_SECRET`, with `GDRIVE_REDIRECT_URI` set exactly as registered.
+5. Create a Drive folder with authorized packshots (PNG/JPEG). Its ID is the last part of the folder URL (`https://drive.google.com/drive/folders/<ID>`); put it in `GDRIVE_ALLOWED_FOLDER_ID`.
+6. `aio app deploy --force-deploy`.
+
+Testing-mode limits: Google sign-ins for unverified apps in Testing expire after **7 days** (authors reconnect), and only listed test users can sign in. Company Google Workspace accounts may block unverified apps; a personal Google account works. See [PRODUCTION-READINESS.md](PRODUCTION-READINESS.md) for what production use requires.
 
 ## 2. Firefly Creative Production
 
@@ -159,6 +173,10 @@ For local development, use `ref=local`. Workspace then loads the plugin from `ht
 | "token was not issued to Experience Workspace" | Add the Workspace client ID to `IMS_ALLOWED_CLIENT_IDS` |
 | Box popup closes but stays disconnected | Redirect URI mismatch or the enterprise hasn't authorized the app. Check the `box-auth-callback` logs (`aio app logs`) |
 | `box-folder-not-allowed` | The file is outside `BOX_ALLOWED_FOLDER_ID` |
+| Google shows "Error 400: redirect_uri_mismatch" | `GDRIVE_REDIRECT_URI` isn't exactly one of the OAuth client's Authorized redirect URIs |
+| Google shows "Access blocked: app has not completed verification" | Add your account under OAuth consent screen → Test users (Testing mode), or use a personal Google account |
+| `gdrive-folder-not-allowed` | The file or folder is outside `GDRIVE_ALLOWED_FOLDER_ID` |
+| Google Drive keeps asking to reconnect after a week | Expected in Testing mode (7-day sign-ins); production needs a verified app |
 | "Adobe doesn't let hosted apps sign in to Firefly…" | Expected in `mcp` mode (Adobe policy). Use `bridge` for demos or `api` with a credential |
 | "Local Firefly bridge offline" in the plugin | Start `npm run bridge` on the operator's computer; queued runs then start automatically |
 | Bridge prints "Not signed in" or "Sign-in expired" | Run `npm run bridge:login` again |

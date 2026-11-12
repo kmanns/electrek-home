@@ -8,7 +8,8 @@
 |---|---|---|
 | **Firefly Creative Production** | `FFCPE_MODE=bridge`. A **local bridge script on the operator's computer** signs in to Adobe's run-workflow MCP with the **operator's own Adobe account** and runs every job. | Every run uses one person's identity, permissions and quota. Runs only happen while that computer is on and `npm run bridge` is running. The run-workflow MCP is a development-time agent service, and Adobe only accepts sign-ins from local tools or Claude's hosted callback. Hosted sign-in (`FFCPE_MODE=mcp`) is refused with `redirect_uri must be a loopback (localhost) URL or the Claude hosted callback.` |
 | **Image delivery** | `DELIVERY_MODE=public`. Approved images are stored in App Builder Files `public/` and inserted by public URL. | They are not managed assets: no DAM governance, rights metadata, approvals, renditions or Dynamic Media optimization. Deleting the App Builder workspace deletes the images. |
-| **Box** | OAuth app in a **free developer account**, enabled by hand in that account's Platform Apps. | A customer's enterprise Box admin must approve the app. The redirect URI points at a **Stage** App Builder workspace. |
+| **Box** | OAuth app in a **free developer account**, enabled by hand in that account's Platform Apps. |
+| **Google Drive** | Google OAuth client in **Testing** mode (listed test users only; sign-ins expire after 7 days). | `drive.readonly` is a Google **restricted** scope, so a public app needs Google's verification, including an independent security assessment (CASA). | A customer's enterprise Box admin must approve the app. The redirect URI points at a **Stage** App Builder workspace. |
 | **App Builder backend** | Deployed to the **Stage** workspace of org "Adobe Demo System" from a personal laptop. | No production workspace, no CI/CD, no secret rotation, no monitoring or alerting. |
 | **Distribution** | Registered by hand in one site's Workspace library sheet. | No marketplace listing, multi-tenant configuration, security review or support model. |
 
@@ -48,6 +49,16 @@ Switch to `DELIVERY_MODE=aem`.
 | A Box app (OAuth 2.0 user authentication), **read-only scope**, owned by the customer or the publisher | Developer |
 | **Enterprise admin approval** in each customer's Box: Admin Console → Integrations → Platform Apps Manager | Customer's Box admin |
 | A production redirect URI (`<production backend>/box-auth-callback`) and an agreed campaign folder per site | Developer / customer |
+
+### 3b. Google Drive
+
+| Requirement | Who |
+|---|---|
+| A Google Cloud project owned by the publisher or customer, with the Drive API enabled | Developer |
+| OAuth consent screen moved from **Testing** to **In production**, with **app verification** for the restricted `drive.readonly` scope: brand verification, privacy policy, scope justification, demo video and an annual **CASA security assessment**. That usually takes weeks. | Publisher + security |
+| Alternative that avoids the restricted scope: switch to `drive.file` with the Google Picker, so authors pick files rather than browse a folder. That's a code change. | Developer |
+| Google Workspace customers: admins allow the app (Admin console → Security → API controls → App access control) | Customer's Workspace admin |
+| A production redirect URI (`<production backend>/gdrive-auth-callback`) and an agreed campaign folder per site | Developer / customer |
 
 ### 4. App Builder backend
 

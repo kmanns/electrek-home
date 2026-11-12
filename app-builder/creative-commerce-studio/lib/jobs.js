@@ -14,7 +14,7 @@
 const crypto = require('crypto');
 const { AppError } = require('./http');
 const store = require('./store');
-const box = require('./box');
+const sources = require('./sources');
 const { engine, mode: ffMode, interpretMcpStatus, BRIDGE_QUEUE } = require('./engines');
 const delivery = require('./delivery');
 const fireflyAuth = require('./firefly-auth');
@@ -86,7 +86,8 @@ async function findActiveDuplicate(user, sku, source) {
   const ids = (await store.getJSON(indexKey(user))) || [];
   const jobs = await Promise.all(ids.map((id) => store.getJSON(jobKey(id))));
   return jobs.find((j) => j && j.owner === user.key && ACTIVE.includes(j.status)
-    && j.sku === sku && j.source.fileId === source.fileId && j.source.versionId === source.versionId);
+    && j.sku === sku && (j.source.provider || 'box') === source.provider
+    && j.source.fileId === source.fileId && j.source.versionId === source.versionId);
 }
 
 async function submit(params, user, body, fetchImpl = fetch) {
@@ -96,9 +97,10 @@ async function submit(params, user, body, fetchImpl = fetch) {
   if (!UUID_RE.test(String(requestId || ''))) throw new AppError(400, 'bad-request', 'A request ID is required.');
   if (!SKU_RE.test(String(sku || ''))) throw new AppError(400, 'bad-request', 'A valid SKU is required.');
   if (associationConfirmed !== true) throw new AppError(400, 'association-required', 'Confirm that the source file shows this product.');
-  if (source?.provider !== 'box' || !source.fileId || !source.versionId) {
-    throw new AppError(400, 'bad-request', 'A Box file and version are required.');
+  if (!source?.provider || !source.fileId || !source.versionId) {
+    throw new AppError(400, 'bad-request', 'A source file and version are required.');
   }
+  const connector = sources.get(params, String(source.provider));
 
   const existingId = await store.getJSON(requestKey(user, requestId));
   if (existingId) return view(await load(user, existingId));
@@ -109,7 +111,7 @@ async function submit(params, user, body, fetchImpl = fetch) {
   if (ffMode(params) === 'mcp') await fireflyAuth.accessToken(params, user, fetchImpl);
 
   // Retrieve the exact selected file version (validates folder allow-list + type).
-  const src = await box.downloadVersion(params, user, source.fileId, source.versionId, fetchImpl);
+  const src = await connector.downloadVersion(params, user, source.fileId, source.versionId, fetchImpl);
   const kind = sniff(src.bytes);
   if (!kind) throw new AppError(415, 'unsupported-source', 'The selected file is not a readable PNG or JPEG image.');
 
@@ -122,7 +124,7 @@ async function submit(params, user, body, fetchImpl = fetch) {
     sku,
     productName: String(productName || '').slice(0, 200),
     source: {
-      provider: 'box', fileId: String(source.fileId), versionId: String(source.versionId), name: src.name, sha1: src.sha1, width: kind.width, height: kind.height,
+      provider: String(source.provider), fileId: String(source.fileId), versionId: String(source.versionId), name: src.name, sha1: src.sha1, md5: src.md5 || null, width: kind.width, height: kind.height,
     },
     recipe: { workflowId: params.FFCPE_WORKFLOW_ID, version: params.FFCPE_RECIPE_VERSION || '1', mode: ffMode(params) },
     deliveryToken: randomId(12).replace(/[^a-zA-Z0-9]/g, '').slice(0, 10).toLowerCase(),

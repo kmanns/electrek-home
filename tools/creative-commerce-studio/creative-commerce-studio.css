@@ -484,3 +484,18 @@ body {
 .ccs-list-text {
   min-width: 0;
 }
+
+/* ---------- file storage picker ---------- */
+
+.ccs-providers sp-action-button {
+  gap: var(--spectrum-spacing-75);
+}
+
+.ccs-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  margin-inline-start: var(--spectrum-spacing-75);
+  border-radius: 50%;
+  background: var(--spectrum-positive-visual-color);
+}
