@@ -115,3 +115,24 @@ describe('image sniffing', () => {
     expect(sniff(Buffer.from('%PDF-1.7'))).toBeNull();
   });
 });
+
+describe('progress extraction', () => {
+  test('counts completed workflow steps', () => {
+    const body = { status: 'running', actions: [
+      { id: 'a', status: 'completed' }, { id: 'b', status: 'success' }, { id: 'c', status: 'running' }, { id: 'd', status: 'pending' },
+    ] };
+    expect(engines.extractProgress(body)).toEqual({ percent: 50, done: 2, total: 4 });
+  });
+  test('uses an explicit fraction or percentage and never reports 100 while running', () => {
+    expect(engines.extractProgress({ status: 'running', progress: 0.42 })).toEqual({ percent: 42 });
+    expect(engines.extractProgress({ status: 'running', summary: { percentComplete: 100 } })).toEqual({ percent: 99 });
+    expect(engines.extractProgress({ status: 'running', totalActions: 13, completedActions: 7 })).toEqual({ percent: 54, done: 7, total: 13 });
+  });
+  test('returns null when nothing indicates progress', () => {
+    expect(engines.extractProgress({ status: 'running' })).toBeNull();
+  });
+  test('interpretMcpStatus carries progress for running jobs', () => {
+    expect(engines.interpretMcpStatus(h.PARAMS, { status: 'running', steps: [{ status: 'done' }, { status: 'running' }] }))
+      .toEqual({ state: 'processing', progress: { percent: 50, done: 1, total: 2 } });
+  });
+});
