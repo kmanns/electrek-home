@@ -17,6 +17,7 @@ application:
           BOX_REDIRECT_URI: $BOX_REDIRECT_URI
           BOX_ALLOWED_FOLDER_ID: $BOX_ALLOWED_FOLDER_ID
           FFCPE_MODE: $FFCPE_MODE
+          BRIDGE_TOKEN: $BRIDGE_TOKEN
           FFCPE_MCP_URL: $FFCPE_MCP_URL
           FIREFLY_REDIRECT_URI: $FIREFLY_REDIRECT_URI
           FIREFLY_CLIENT_NAME: $FIREFLY_CLIENT_NAME
@@ -90,6 +91,19 @@ application:
             function: actions/firefly-disconnect/index.js
             web: 'yes'
             runtime: nodejs:22
+            annotations: *web
+          bridge-next:
+            function: actions/bridge-next/index.js
+            web: 'yes'
+            runtime: nodejs:22
+            annotations: *web
+          bridge-report:
+            function: actions/bridge-report/index.js
+            web: 'yes'
+            runtime: nodejs:22
+            limits:
+              timeout: 120000
+              memorySize: 512
             annotations: *web
           job-submit:
             function: actions/job-submit/index.js

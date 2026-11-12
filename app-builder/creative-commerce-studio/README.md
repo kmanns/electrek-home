@@ -1,5 +1,8 @@
 # Creative Commerce Studio
 
+> [!WARNING]
+> **Demo build — not production-ready.** Firefly runs go through a **local bridge on the operator's computer** using that person's own Adobe sign-in. Approved images are stored in App Builder public storage, not Product Visuals. Production needs Firefly Services API access (Developer role and a server-to-server credential in the Firefly org) and an AEM server-to-server credential, among other things. **Read [PRODUCTION-READINESS.md](PRODUCTION-READINESS.md) before installing or relying on this.**
+
 Turns product masters in **Box** into shoppable, placement-ready storefront content inside **Experience Workspace**, using **Firefly Creative Production** for the imagery and **Adobe Commerce** for the product link.
 
 ```
@@ -24,7 +27,7 @@ Author flow: **Product → Source → Prepare → Review → Insert**. The plugi
 | Workspace plugin | Built and tested in a simulated Workspace frame with a mocked backend |
 | App Builder actions | Built, unit-tested (`npm test`, 33 tests). Stage deploy with Box verified in Workspace |
 | Box | Connect + folder listing verified in Workspace (2026-11-11) |
-| FFCPE (MCP route) | Workflow contract verified with a real run through the MCP (2026-11-12); backend sign-in not yet run live |
+| FFCPE | Workflow contract verified with a real MCP run (2026-11-12). Hosted sign-in refused by Adobe policy; **demo runs via the local bridge**; production needs the api credential |
 | Product Visuals | Needs an AEM server-to-server credential; until then delivery uses App Builder public storage |
 
 ## Prerequisites
@@ -48,16 +51,37 @@ Author flow: **Product → Source → Prepare → Review → Insert**. The plugi
 
 Build and publish the workflow first ([workflows/README.md](workflows/README.md)). Then pick a mode:
 
-**`FFCPE_MODE=mcp` (default, no Adobe credential needed).** The backend is an MCP client of `https://run-workflow.adobe.io/mcp`. Each author clicks **Connect Firefly** on the Prepare step and signs in with their own Adobe account, which must be able to run the workflow. The first sign-in after a deploy registers this backend with Adobe's MCP sign-in server (OAuth dynamic client registration); that creates a client record on Adobe's side. Settings:
+**`FFCPE_MODE=bridge` — DEMO ONLY, works today.** See [Local Firefly bridge](#local-firefly-bridge-demo-only) below.
+
+**`FFCPE_MODE=mcp` — hosted sign-in, currently refused by Adobe.** The backend is an MCP client of `https://run-workflow.adobe.io/mcp`. Each author clicks **Connect Firefly** on the Prepare step and signs in with their own Adobe account, which must be able to run the workflow. The first sign-in after a deploy registers this backend with Adobe's MCP sign-in server (OAuth dynamic client registration); that creates a client record on Adobe's side. Settings:
 
 - `FIREFLY_REDIRECT_URI`: the backend URL followed by `/firefly-auth-callback`
 - `FFCPE_WORKFLOW_ID` and the node IDs `FFCPE_PRODUCT_NODE_ID`, `FFCPE_DESKTOP_NODE_ID`, `FFCPE_MOBILE_NODE_ID` (see the workflow's Execute Graph snippet). Outputs are matched by node ID, never by file name or order.
 
-The run-workflow MCP is a development-time agent service, so this route suits demos and pilots. For production, use `api` mode.
+The run-workflow MCP only accepts sign-ins from local tools or Claude's hosted callback. A hosted backend gets `redirect_uri must be a loopback (localhost) URL or the Claude hosted callback`, which the plugin shows as a clear message. This mode only works if Adobe allowlists the backend's callback URL.
 
 **`FFCPE_MODE=api`.** REST Workflow API (`POST /batch/execute`, status, executions; contract in `https://run-workflow.adobe.io/openapi.json`) with an OAuth Server-to-Server credential. This needs Developer access in the org that owns the workflow. Set `FFCPE_CLIENT_ID`, `FFCPE_CLIENT_SECRET`, `FFCPE_IMS_ORG_ID` and, if your credential requires it, `FFCPE_IMS_USER_ID`. The default request body mirrors the Execute Graph snippet; override it with `FFCPE_EXECUTE_TEMPLATE` if needed.
 
 In both modes the workflow gets a 1-hour presigned App Builder Files URL to the exact Box file version (Box links aren't accepted as workflow input hosts).
+
+## Local Firefly bridge (DEMO ONLY)
+
+Adobe allows `localhost` sign-ins for tools that run on your own computer. The bridge is such a tool: it runs on the **operator's** computer, signs in with **their** Adobe account, and runs the queued jobs. Authors use the plugin as usual; with `FFCPE_MODE=bridge` the Prepare step shows a "Demo mode" notice and whether the bridge is online.
+
+1. Add these to the backend `.env`, then `aio app deploy`:
+   ```
+   FFCPE_MODE=bridge
+   BRIDGE_TOKEN=<32+ random characters, e.g. node -e "console.log(require('crypto').randomBytes(32).toString('base64url'))">
+   CCS_BACKEND_URL=https://<namespace>.adobeioruntime.net/api/v1/web/creative-commerce-studio
+   ```
+   (`CCS_BACKEND_URL` is only read by the bridge.)
+2. One-time sign-in on the operator's computer, in this folder: `npm run bridge:login`. A browser window opens Adobe's sign-in, which comes back to `http://localhost:8765/callback`. The sign-in is stored in `~/.ccs-bridge/firefly.json` (readable only by you).
+3. Keep `npm run bridge` running during demos. It polls the backend every 5 s, starts queued runs with `run_workflow_submit`, forwards `run_workflow_get_status` results, and the backend matches outputs by node ID.
+
+How it behaves:
+- The bridge only makes outgoing HTTPS calls (to Adobe and to the backend). The backend's `bridge-next` / `bridge-report` actions require `BRIDGE_TOKEN`, compared in constant time, and refuse every call unless `FFCPE_MODE=bridge`.
+- A run is handed to the bridge once. If it never confirms the start within 10 minutes, the job becomes `submit-uncertain` and is never resubmitted automatically.
+- Every run uses the operator's Firefly identity, permissions and quota, for every author. See [PRODUCTION-READINESS.md](PRODUCTION-READINESS.md).
 
 ## 3. Delivery of approved images
 
@@ -133,6 +157,10 @@ For local development, use `ref=local`. Workspace then loads the plugin from `ht
 | "token was not issued to Experience Workspace" | Add the Workspace client ID to `IMS_ALLOWED_CLIENT_IDS` |
 | Box popup closes but stays disconnected | Redirect URI mismatch or the enterprise hasn't authorized the app. Check the `box-auth-callback` logs (`aio app logs`) |
 | `box-folder-not-allowed` | The file is outside `BOX_ALLOWED_FOLDER_ID` |
+| "Adobe doesn't let hosted apps sign in to Firefly…" | Expected in `mcp` mode (Adobe policy). Use `bridge` for demos or `api` with a credential |
+| "Local Firefly bridge offline" in the plugin | Start `npm run bridge` on the operator's computer; queued runs then start automatically |
+| Bridge prints "Not signed in" or "Sign-in expired" | Run `npm run bridge:login` again |
+| Bridge prints "Backend bridge-next: Bridge token rejected" | `BRIDGE_TOKEN` in the bridge's `.env` differs from the deployed one; redeploy after changing it |
 | "Adobe's Firefly sign-in did not accept this app's registration" | The MCP sign-in server refused dynamic registration for this redirect URI. Use `api` mode, or check `FIREFLY_REDIRECT_URI` |
 | Connect Firefly window closes but stays disconnected | Check `aio app logs` for `firefly-auth-callback`; the Adobe account may lack access to the workflow |
 | `ffcpe-error … rejected the request` | Wrong workflow ID or node ID, the workflow isn't published, or (api mode) the request body doesn't match |

@@ -119,6 +119,10 @@ function errorText(err) {
   if (err instanceof BackendError && err.code === 'firefly-reauth') {
     return 'Connect Firefly (again) to run production.';
   }
+  if (err instanceof BackendError && err.code === 'firefly-signin-not-allowed') {
+    return 'Adobe doesn’t let hosted apps sign in to Firefly Creative Production yet (only local tools). '
+      + 'An administrator can switch this site to a server-to-server Firefly credential, or to the local Firefly bridge for demos.';
+  }
   return err?.message || 'Something went wrong.';
 }
 
@@ -252,7 +256,11 @@ async function refreshFirefly() {
   try {
     const status = await state.backend.fireflyStatus();
     state.firefly = {
-      checked: true, connected: !!status.connected, mode: status.mode || 'mcp', error: null,
+      checked: true,
+      connected: !!status.connected,
+      mode: status.mode || 'mcp',
+      lastSeenMs: status.lastSeenMs ?? null,
+      error: null,
     };
   } catch (e) {
     state.firefly = {
@@ -731,10 +739,33 @@ function renderPrepareStep() {
     ),
   ];
   const ff = state.firefly;
-  const needsFirefly = ff.mode !== 'api' && !ff.connected;
+  const needsFirefly = ff.mode === 'mcp' && !ff.connected;
   if (ff.error) children.push(alert('negative', null, ff.error));
+  if (ff.mode === 'bridge') {
+    children.push(alert(
+      'notice',
+      'Demo mode: local Firefly bridge',
+      'Production runs on the operator’s computer with their own Firefly sign-in, and only while the bridge is running. '
+        + 'Not for production use. See PRODUCTION-READINESS.md.',
+    ));
+    children.push(h(
+      'div',
+      { class: 'ccs-row' },
+      ff.connected
+        ? h('sp-status-light', { variant: 'positive', size: 's', text: 'Local Firefly bridge online' })
+        : h('sp-status-light', { variant: 'notice', size: 's', text: 'Local Firefly bridge offline' }),
+      h('sp-action-button', {
+        size: 's', quiet: true, onClick: async () => { await refreshFirefly(); render(); },
+      }, icon('refresh', 'icon'), 'Check'),
+    ));
+    if (!ff.connected) {
+      children.push(h('p', { class: 'ccs-detail', text: 'Ask the operator to run “npm run bridge” in the backend folder. You can still queue the run now; it starts as soon as the bridge comes online.' }));
+    }
+  }
   if (!ff.checked && state.sdk && state.backendConfigured) {
     children.push(h('div', { class: 'ccs-loading' }, h('sp-progress-circle', { indeterminate: true, size: 's', label: 'Checking Firefly connection' }), 'Checking your Firefly connection…'));
+  } else if (ff.mode === 'bridge') {
+    // handled above
   } else if (needsFirefly) {
     children.push(h(
       'div',

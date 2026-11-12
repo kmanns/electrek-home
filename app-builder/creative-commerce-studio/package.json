@@ -8,7 +8,9 @@
     "node": ">=22"
   },
   "scripts": {
-    "test": "jest --ci"
+    "test": "jest --ci",
+    "bridge": "node bridge/ccs-bridge.js run",
+    "bridge:login": "node bridge/ccs-bridge.js login"
   },
   "dependencies": {
     "@adobe/aio-lib-files": "^4.1.4",
