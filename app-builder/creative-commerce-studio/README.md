@@ -1,5 +1,7 @@
 # Creative Commerce Studio
 
+> **Standalone, marketplace-style repo:** [github.com/kmanns/creative-commerce-studio](https://github.com/kmanns/creative-commerce-studio) is the reference version of this extension (plugin, block, backend, docs). This folder is the working copy for this site.
+
 > [!WARNING]
 > **Demo build — not production-ready.** Firefly runs go through a **local bridge on the operator's computer** using that person's own Adobe sign-in. Approved images are stored in App Builder public storage, not Product Visuals. Production needs Firefly Services API access (Developer role and a server-to-server credential in the Firefly org) and an AEM server-to-server credential, among other things. **Read [PRODUCTION-READINESS.md](PRODUCTION-READINESS.md) before installing or relying on this.**
 
