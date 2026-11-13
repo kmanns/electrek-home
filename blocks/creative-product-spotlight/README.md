@@ -58,10 +58,11 @@ None; the SKU comes from the block.
 
 ### Layout Behavior
 
-- Mobile: image (4:5) stacked above the copy.
-- Desktop (≥900px): image (16:9) 60% / copy 40%.
+- Mobile: image stacked above the copy.
+- Desktop (≥900px): image 60% / copy 40%.
+- Images are never cropped: each `<source>` carries its own width/height (default rendition sizes 1200×896 desktop, 896×1200 mobile) so space is reserved before load and the real aspect ratio wins.
 - AEM Assets delivery URLs (`*.adobeaemcloud.com/adobe/assets/…`) are requested at 900/1600px widths as WebP with the original format as a fallback. Other URLs are used as authored.
-- `animated`: a single opacity/transform entrance when the block scrolls into view, then a still composition. There is no looping motion. With `prefers-reduced-motion: reduce` no transition runs, and content stays visible if JavaScript or IntersectionObserver is unavailable.
+- `animated`: one entrance of about 1.3 s when the block scrolls into view. The image slides in from the left (0.9 s), then the headline, description and CTA rise in at 0.25 s, 0.4 s and 0.6 s. After that the composition stays still; nothing loops. Only `transform` and `opacity` are animated. With `prefers-reduced-motion: reduce` nothing animates, and content stays visible if JavaScript or IntersectionObserver is unavailable.
 
 ### Error Handling
 

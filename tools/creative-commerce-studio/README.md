@@ -1,5 +1,7 @@
 # Creative Commerce Studio — Workspace library plugin
 
+> Reference repo: [github.com/kmanns/creative-commerce-studio](https://github.com/kmanns/creative-commerce-studio).
+
 > [!WARNING]
 > **Demo build — not production-ready.** See [PRODUCTION-READINESS.md](../../app-builder/creative-commerce-studio/PRODUCTION-READINESS.md) for the API access, roles and credentials needed before real use.
 
