@@ -42,6 +42,16 @@ Switch to `DELIVERY_MODE=aem`.
 | Target folder (`AEM_TARGET_FOLDER`) and approval policy. The backend marks renditions `dam:status=approved`; production may require human approval in AEM instead. | DAM owner | AEM Assets |
 | Backend settings: `AEM_AUTHOR_URL`, `AEM_DELIVERY_URL`, `AEM_CLIENT_ID`, `AEM_CLIENT_SECRET`, `AEM_SCOPES` | Operator | App Builder `.env` |
 
+**What doesn't replace this credential** (checked 2026-11-16):
+
+- **Commerce's own AEM Assets connection.** With Adobe Commerce as a Cloud Service, the Commerce ↔ AEM Assets (Product Visuals) integration runs on Commerce's credentials. An external app can't reuse them.
+- **"Sign in with Adobe" without a credential.** Unlike the run-workflow MCP, AEM as a Cloud Service offers no self-registering sign-in for third-party apps. A user-delegated alternative is possible, but it still needs a **Developer Console credential with AEM API access**: an OAuth user-authentication (Web App) credential instead of server-to-server. The environment must also allow it. Either way, someone with the **Developer** role in the AEM org has to create it.
+- **The author's Experience Workspace sign-in.** Workspace uses it for its built-in AEM Assets picker. Whether an AEM environment would also accept it for uploads is untested, and this extension doesn't rely on it.
+
+Until the credential exists, `DELIVERY_MODE=public` stores approved images in App Builder public storage. That works and is durable, but the images aren't managed assets.
+
+Target environment for this site (not secret): `AEM_AUTHOR_URL=https://author-p158081-e1683323.adobeaemcloud.com`, `AEM_DELIVERY_URL=https://delivery-p158081-e1683323.adobeaemcloud.com`.
+
 ### 3. Box
 
 | Requirement | Who |
