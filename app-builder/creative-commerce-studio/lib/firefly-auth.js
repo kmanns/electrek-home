@@ -33,9 +33,11 @@ function mcpUrl(params) {
 }
 
 function requireConfig(params) {
-  ['FIREFLY_REDIRECT_URI', 'FFCPE_WORKFLOW_ID'].forEach((k) => {
-    if (!params[k]) throw new AppError(500, 'misconfigured', `Firefly Creative Production is not configured (${k} missing).`);
-  });
+  if (!params.FIREFLY_REDIRECT_URI) throw new AppError(500, 'misconfigured', 'Firefly Creative Production is not configured (FIREFLY_REDIRECT_URI missing).');
+  // eslint-disable-next-line global-require
+  if (!require('./workflows').list(params).length) {
+    throw new AppError(500, 'misconfigured', 'Firefly Creative Production is not configured (FFCPE_WORKFLOWS or FFCPE_WORKFLOW_ID missing).');
+  }
 }
 
 /** OAuth authorization-server metadata (RFC 8414), with known defaults as fallback. */

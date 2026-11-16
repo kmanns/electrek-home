@@ -499,3 +499,22 @@ body {
   border-radius: 50%;
   background: var(--spectrum-positive-visual-color);
 }
+
+/* ---------- workflow choice ---------- */
+
+.ccs-workflow {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spectrum-spacing-100);
+}
+
+.ccs-workflow-details {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spectrum-spacing-100);
+  padding: var(--spectrum-spacing-200) var(--spectrum-spacing-300);
+}
+
+.ccs-workflow-details:empty {
+  display: none;
+}

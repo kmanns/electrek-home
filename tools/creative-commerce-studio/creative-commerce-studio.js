@@ -47,6 +47,8 @@ const state = {
   firefly: {
     checked: false, connected: false, mode: null, error: null,
   },
+  workflows: { checked: false, list: [], error: null }, // [{ key, label, description, steps }]
+  workflowKey: null,
   folder: null, // { id, name, parentId, entries: [] }
   file: null, // { provider, id, name, versionId, size, thumbnail }
   confirmed: false,
@@ -139,7 +141,9 @@ function jobMatchesSelection(job = state.job) {
     && job.sku === state.product.sku
     && (job.source?.provider || 'box') === state.file.provider
     && job.source?.fileId === state.file.id
-    && job.source?.versionId === state.file.versionId;
+    && job.source?.versionId === state.file.versionId
+    && (!state.workflowKey || !job.recipe?.workflowKey
+      || job.recipe.workflowKey === state.workflowKey);
 }
 
 function resetFrom(step) {
@@ -288,6 +292,31 @@ async function onConnectSource() {
   }
 }
 
+async function refreshWorkflows() {
+  if (!state.backendConfigured || !state.sdk) return;
+  try {
+    const { workflows = [], defaultKey = null } = await state.backend.workflowsList();
+    state.workflows = { checked: true, list: workflows, error: null };
+    if (!workflows.some((w) => w.key === state.workflowKey)) {
+      state.workflowKey = defaultKey || workflows[0]?.key || null;
+    }
+  } catch (e) {
+    // Older backends have no workflows-list: the backend's single workflow is used.
+    state.workflows = { checked: true, list: [], error: null };
+  }
+}
+
+function currentWorkflow() {
+  return state.workflows.list.find((w) => w.key === state.workflowKey) || null;
+}
+
+function onSelectWorkflow(key) {
+  if (key === state.workflowKey) return;
+  state.workflowKey = key;
+  state.jobError = null;
+  render();
+}
+
 async function refreshFirefly() {
   if (!state.backendConfigured || !state.sdk) return;
   try {
@@ -405,6 +434,7 @@ async function onSubmitJob() {
         name: state.file.name,
       },
       associationConfirmed: true,
+      workflowKey: state.workflowKey || undefined,
     });
     state.job = job;
     pollDelay = 3000;
@@ -481,6 +511,7 @@ async function onResume(job) {
       provider: job.source.provider || 'box', id: job.source.fileId, versionId: job.source.versionId, name: job.source.name,
     };
     state.provider = state.file.provider;
+    if (job.recipe?.workflowKey) state.workflowKey = job.recipe.workflowKey;
     state.confirmed = true;
     state.job = job;
     state.copy.imageAlt = state.copy.imageAlt || product.name;
@@ -515,6 +546,7 @@ function goTo(step) {
   setNotice(null);
   render();
   if (step === 2 && !state.firefly.checked) refreshFirefly().then(render);
+  if (step === 2 && !state.workflows.checked) refreshWorkflows().then(render);
 }
 
 /* ---------- views ---------- */
@@ -850,18 +882,52 @@ function renderProgress(job) {
   return h('div', { class: 'ccs-progress-wrap' }, bar, h('p', { class: 'ccs-detail', text: meta }));
 }
 
+const FALLBACK_STEPS = ['Remove background', 'Place in the desktop layout', 'Place in the mobile layout'];
+
+function renderWorkflowDetails(wf) {
+  const steps = wf ? wf.steps || [] : FALLBACK_STEPS;
+  return [
+    wf?.description ? h('p', { class: 'ccs-body', text: wf.description }) : null,
+    steps.length ? h('ol', { class: 'ccs-recipe' }, steps.map((s) => h('li', { text: s }))) : null,
+  ];
+}
+
+/** Workflow choice: radio cards when several are offered, a plain line when there is one. */
+function renderWorkflowChoice() {
+  const { list } = state.workflows;
+  const wf = currentWorkflow();
+  if (list.length > 1) {
+    const group = h('sp-radio-group', {
+      id: 'ccs-workflow',
+      selected: state.workflowKey,
+      name: 'workflow',
+      vertical: true,
+      onChange: (e) => onSelectWorkflow(e.target.selected),
+    });
+    list.forEach((w) => group.append(h('sp-radio', { value: w.key }, w.label)));
+    return h(
+      'div',
+      { class: 'ccs-field ccs-workflow' },
+      h('sp-field-label', { for: 'ccs-workflow', text: 'Workflow' }),
+      group,
+      h('div', { class: 'ccs-card is-subtle ccs-workflow-details' }, ...renderWorkflowDetails(wf)),
+    );
+  }
+  if (list.length === 1) {
+    return h(
+      'div',
+      { class: 'ccs-workflow' },
+      h('p', { class: 'ccs-detail' }, 'Workflow: ', h('strong', { text: wf?.label || list[0].label })),
+      ...renderWorkflowDetails(wf || list[0]),
+    );
+  }
+  return h('div', { class: 'ccs-workflow' }, ...renderWorkflowDetails(null));
+}
+
 function renderPrepareStep() {
   const { job } = state;
   const running = job && !TERMINAL.includes(job.status);
-  const children = [
-    h(
-      'ol',
-      { class: 'ccs-recipe' },
-      h('li', { text: 'Remove background' }),
-      h('li', { text: 'Place in the desktop layout' }),
-      h('li', { text: 'Place in the mobile layout' }),
-    ),
-  ];
+  const children = [renderWorkflowChoice()];
   const ff = state.firefly;
   const needsFirefly = ff.mode === 'mcp' && !ff.connected;
   if (ff.error) children.push(alert('negative', null, ff.error));
@@ -1040,6 +1106,7 @@ function renderInsertStep() {
       ...row('Headline', data.headline),
       ...row('CTA', data.ctaLabel),
       ...row('Presentation', data.presentation === 'animated' ? 'Animated entrance' : 'Static'),
+      ...(state.job?.recipe?.label ? row('Workflow', state.job.recipe.label) : []),
       ...row('Desktop', data.desktopImage, 'ccs-url'),
       ...row('Mobile', data.mobileImage, 'ccs-url'),
     ),
@@ -1112,6 +1179,7 @@ async function init() {
     } catch (e) { /* recent jobs are a convenience */ }
     await refreshSources();
     await refreshFirefly();
+    await refreshWorkflows();
     render();
   }
 }

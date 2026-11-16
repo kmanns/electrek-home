@@ -99,21 +99,33 @@ In both modes the workflow gets a 1-hour presigned App Builder Files URL to the 
 
 ## Choosing a workflow
 
-**Today: one admin-configured workflow.** Authors don't choose a workflow. Every run uses the published Firefly Creative Production workflow set in the backend settings (`FFCPE_WORKFLOW_ID`), together with three node IDs from that workflow:
+Authors choose the Firefly Creative Production workflow on the **Prepare** step, from a list the site admin configures. With several workflows, they appear as radio buttons, each showing its description and steps. With one, the step just shows its name.
 
-- `FFCPE_PRODUCT_NODE_ID`: the image input that receives the packshot
-- `FFCPE_DESKTOP_NODE_ID` and `FFCPE_MOBILE_NODE_ID`: the composite outputs the extension picks up
+**Configure the list** with `FFCPE_WORKFLOWS` in `.env`: a one-line JSON array where the first entry is the default. Each entry needs:
 
-To switch workflows, change those four values in `.env`, run `aio app deploy --force-deploy`, and restart the bridge if you use it. Jobs record the workflow ID they ran with (`recipe.workflowId`), so earlier results stay traceable.
+| Field | Required | Meaning |
+|---|---|---|
+| `key` | yes | Short ID: lowercase letters, digits, dashes |
+| `label` | yes | Name authors see |
+| `description`, `steps` | no | One-line description and a list of step names shown under the choice |
+| `workflowId` | yes | The published workflow's ID |
+| `productNodeId` | yes | The image input that receives the packshot |
+| `desktopNodeId`, `mobileNodeId` | yes | The composite outputs the extension picks up |
 
-**Planned: an admin-curated workflow picker.**
+```
+FFCPE_WORKFLOWS=[{"key":"spotlight","label":"Product spotlight","description":"Cutout on the brand backdrop","steps":["Remove background","Place in the desktop layout","Place in the mobile layout"],"workflowId":"<id>","productNodeId":"<node>","desktopNodeId":"<node>","mobileNodeId":"<node>"},{"key":"lifestyle","label":"Lifestyle scene","description":"Product composited into a room scene","workflowId":"<id>","productNodeId":"<node>","desktopNodeId":"<node>","mobileNodeId":"<node>"}]
+```
 
-- **One new setting** will list the allowed workflows, each with a label, a short description and its three node IDs.
-- **On the Prepare step,** authors pick one from that list. With a single entry, the picker shows just its name.
-- **Each job records the chosen workflow.** The bridge and the REST API use that workflow's node IDs to start the run and match its outputs.
-- **The backend refuses** any workflow that isn't on the list.
+Then run `aio app deploy --force-deploy`, and restart the bridge if you use it. A configuration mistake, such as bad JSON, a duplicate key or a missing node ID, shows as a clear error that names the entry.
 
-It's admin-curated on purpose. Each workflow must produce desktop and mobile composites at known nodes, and Firefly doesn't say which nodes those are. So listing every workflow in an author's Firefly account wouldn't produce usable results.
+**Single workflow:** leave `FFCPE_WORKFLOWS` empty and set `FFCPE_WORKFLOW_ID` with the three `FFCPE_*_NODE_ID` values. `FFCPE_WORKFLOW_LABEL` is optional and sets the name authors see. Existing installs keep working unchanged.
+
+How it behaves:
+
+- **Each job records its workflow** (key, name, workflow and node IDs). Polling, the local bridge and result matching all use that job's workflow, even if the list changes later. The Insert step shows which workflow made the images.
+- **Changing the choice after a run** marks that run as belonging to the other workflow; **Run again** starts one for the new choice. Duplicate-run protection is per workflow.
+- **The backend refuses any workflow key that isn't on the list,** before anything is downloaded. The plugin never sees node IDs.
+- **The list is curated on purpose.** Each workflow must produce desktop and mobile composites at known nodes, and Firefly doesn't say which nodes those are, so authors can't pick arbitrary workflows from their Firefly account.
 
 ## Local Firefly bridge (DEMO ONLY)
 
@@ -233,7 +245,7 @@ For local development, use `ref=local`. Workspace then loads the plugin from `ht
 
 ## Known limitations
 
-- Single Box connector, single store view, exact-SKU lookup, PNG/JPEG only, one admin-configured workflow (see [Choosing a workflow](#choosing-a-workflow); a curated picker is planned).
+- Single Box connector, single store view, exact-SKU lookup, PNG/JPEG only, workflows limited to an admin-curated list (see [Choosing a workflow](#choosing-a-workflow)).
 - MCP mode depends on the run-workflow MCP's sign-in and tool contract (`run_workflow_submit`, `run_workflow_get_status`), which may change; api mode is the stable route.
 - Insertion only; the plugin cannot read or replace existing blocks.
 - Price is not shown in the spotlight. The block links to the PDP, where pricing uses the storefront's customer context.
