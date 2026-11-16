@@ -76,6 +76,7 @@ export function createBackend(getToken) {
     sourceDisconnect: (provider) => call(`${provider}-disconnect`),
     sourceFiles: (provider, folderId) => call(`${provider}-files`, { folderId }),
     fireflyStatus: () => call('firefly-status'),
+    workflowsList: () => call('workflows-list'),
     fireflyAuthStart: () => call('firefly-auth-start'),
     fireflyDisconnect: () => call('firefly-disconnect'),
     jobSubmit: (payload) => call('job-submit', payload),

@@ -15,6 +15,7 @@ const crypto = require('crypto');
 const { AppError } = require('./http');
 const store = require('./store');
 const sources = require('./sources');
+const workflows = require('./workflows');
 const { engine, mode: ffMode, interpretMcpStatus, BRIDGE_QUEUE } = require('./engines');
 const delivery = require('./delivery');
 const fireflyAuth = require('./firefly-auth');
@@ -70,7 +71,13 @@ async function view(job) {
     source: {
       provider: job.source.provider, fileId: job.source.fileId, versionId: job.source.versionId, name: job.source.name,
     },
-    recipe: job.recipe,
+    recipe: job.recipe ? {
+      workflowKey: job.recipe.workflowKey || null,
+      label: job.recipe.label || null,
+      workflowId: job.recipe.workflowId,
+      version: job.recipe.version,
+      mode: job.recipe.mode,
+    } : null,
     status: job.status,
     message: job.message || null,
     progress: ACTIVE.includes(job.status) ? job.progress || null : null,
@@ -82,17 +89,18 @@ async function view(job) {
   };
 }
 
-async function findActiveDuplicate(user, sku, source) {
+async function findActiveDuplicate(user, sku, source, workflowId) {
   const ids = (await store.getJSON(indexKey(user))) || [];
   const jobs = await Promise.all(ids.map((id) => store.getJSON(jobKey(id))));
   return jobs.find((j) => j && j.owner === user.key && ACTIVE.includes(j.status)
     && j.sku === sku && (j.source.provider || 'box') === source.provider
-    && j.source.fileId === source.fileId && j.source.versionId === source.versionId);
+    && j.source.fileId === source.fileId && j.source.versionId === source.versionId
+    && (!j.recipe?.workflowId || j.recipe.workflowId === workflowId));
 }
 
 async function submit(params, user, body, fetchImpl = fetch) {
   const {
-    requestId, sku, productName, source, associationConfirmed,
+    requestId, sku, productName, source, associationConfirmed, workflowKey,
   } = body || {};
   if (!UUID_RE.test(String(requestId || ''))) throw new AppError(400, 'bad-request', 'A request ID is required.');
   if (!SKU_RE.test(String(sku || ''))) throw new AppError(400, 'bad-request', 'A valid SKU is required.');
@@ -101,10 +109,11 @@ async function submit(params, user, body, fetchImpl = fetch) {
     throw new AppError(400, 'bad-request', 'A source file and version are required.');
   }
   const connector = sources.get(params, String(source.provider));
+  const wf = workflows.resolve(params, workflowKey ? String(workflowKey) : null);
 
   const existingId = await store.getJSON(requestKey(user, requestId));
   if (existingId) return view(await load(user, existingId));
-  const duplicate = await findActiveDuplicate(user, sku, source);
+  const duplicate = await findActiveDuplicate(user, sku, source, wf.workflowId);
   if (duplicate) return view(duplicate);
 
   // Fail fast (before any download or job record) when the author still has to connect Firefly.
@@ -126,7 +135,16 @@ async function submit(params, user, body, fetchImpl = fetch) {
     source: {
       provider: String(source.provider), fileId: String(source.fileId), versionId: String(source.versionId), name: src.name, sha1: src.sha1, md5: src.md5 || null, width: kind.width, height: kind.height,
     },
-    recipe: { workflowId: params.FFCPE_WORKFLOW_ID, version: params.FFCPE_RECIPE_VERSION || '1', mode: ffMode(params) },
+    recipe: {
+      workflowKey: wf.key,
+      label: wf.label,
+      workflowId: wf.workflowId,
+      productNodeId: wf.productNodeId,
+      desktopNodeId: wf.desktopNodeId,
+      mobileNodeId: wf.mobileNodeId,
+      version: params.FFCPE_RECIPE_VERSION || '1',
+      mode: ffMode(params),
+    },
     deliveryToken: randomId(12).replace(/[^a-zA-Z0-9]/g, '').slice(0, 10).toLowerCase(),
     status: 'queued',
     createdAt: now,
@@ -142,7 +160,7 @@ async function submit(params, user, body, fetchImpl = fetch) {
 
   const sourceUrl = await files.generatePresignURL(job.source.filePath, { expiryInSeconds: SOURCE_URL_SECONDS, permissions: 'r' });
   try {
-    const started = await engine(params).submit(params, user, {
+    const started = await engine(params).submit(workflows.scoped(params, job.recipe), user, {
       sourceUrl, sku, jobId: id, productName: job.productName, sourceName: src.name, mimeType: kind.type,
     }, fetchImpl);
     if (started.queued) {
@@ -177,7 +195,7 @@ async function status(params, user, jobId, fetchImpl = fetch) {
   if (TERMINAL.includes(job.status) || !job.batchId || job.recipe?.mode === 'bridge') return view(job);
 
   // A firefly-reauth error propagates: the author reconnects and the job is polled again unchanged.
-  const result = await engine(params).poll(params, user, job.batchId, fetchImpl);
+  const result = await engine(params).poll(workflows.scoped(params, job.recipe), user, job.batchId, fetchImpl);
 
   if (result.state !== 'rendered') {
     const progress = result.progress || job.progress || null;
@@ -227,7 +245,6 @@ const CLAIM_TIMEOUT_MS = 10 * 60 * 1000;
 
 /** Returns work for the operator's local bridge and records its heartbeat. */
 async function bridgeNext(params) {
-  const ids = nodeIdsFor(params);
   await store.putJSON(BRIDGE_HEARTBEAT, { at: Date.now() }, 1);
   const queue = (await store.getJSON(BRIDGE_QUEUE)) || [];
   const keep = [];
@@ -250,10 +267,11 @@ async function bridgeNext(params) {
       // eslint-disable-next-line no-await-in-loop
       const sourceUrl = await files.generatePresignURL(job.source.filePath, { expiryInSeconds: SOURCE_URL_SECONDS, permissions: 'r' });
       keep.push(jobId);
+      const ids = nodeIdsFor(workflows.scoped(params, job.recipe));
       tasks.push({
         type: 'submit',
         jobId,
-        workflowId: params.FFCPE_WORKFLOW_ID,
+        workflowId: workflows.scoped(params, job.recipe).FFCPE_WORKFLOW_ID,
         productNodeId: ids.product,
         sourceUrl,
         sourceName: job.source.name,
@@ -296,7 +314,7 @@ async function bridgeReport(params, report, fetchImpl = fetch) {
     return { status: job.status };
   }
   if (report.result && job.batchId) {
-    const r = interpretMcpStatus(params, report.result);
+    const r = interpretMcpStatus(workflows.scoped(params, job.recipe), report.result);
     if (r.state === 'rendered') {
       await storeOutputs(job, r.placements, fetchImpl);
     } else if (r.state !== job.status || r.message !== job.message

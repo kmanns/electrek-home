@@ -53,10 +53,10 @@ function errorResponse(params, err, logger = console) {
 function readBody(params) {
   const {
     jobId, folderId, requestId, sku, productName, source, associationConfirmed,
-    batchId, failure, uncertain, result, provider,
+    batchId, failure, uncertain, result, provider, workflowKey,
   } = params;
   return {
-    jobId, folderId, requestId, sku, productName, source, associationConfirmed, batchId, failure, uncertain, result, provider,
+    jobId, folderId, requestId, sku, productName, source, associationConfirmed, batchId, failure, uncertain, result, provider, workflowKey,
   };
 }
 
