@@ -97,6 +97,24 @@ The run-workflow MCP only accepts sign-ins from local tools or Claude's hosted c
 
 In both modes the workflow gets a 1-hour presigned App Builder Files URL to the exact Box file version (Box links aren't accepted as workflow input hosts).
 
+## Choosing a workflow
+
+**Today: one admin-configured workflow.** Authors don't choose a workflow. Every run uses the published Firefly Creative Production workflow set in the backend settings (`FFCPE_WORKFLOW_ID`), together with three node IDs from that workflow:
+
+- `FFCPE_PRODUCT_NODE_ID`: the image input that receives the packshot
+- `FFCPE_DESKTOP_NODE_ID` and `FFCPE_MOBILE_NODE_ID`: the composite outputs the extension picks up
+
+To switch workflows, change those four values in `.env`, run `aio app deploy --force-deploy`, and restart the bridge if you use it. Jobs record the workflow ID they ran with (`recipe.workflowId`), so earlier results stay traceable.
+
+**Planned: an admin-curated workflow picker.**
+
+- **One new setting** will list the allowed workflows, each with a label, a short description and its three node IDs.
+- **On the Prepare step,** authors pick one from that list. With a single entry, the picker shows just its name.
+- **Each job records the chosen workflow.** The bridge and the REST API use that workflow's node IDs to start the run and match its outputs.
+- **The backend refuses** any workflow that isn't on the list.
+
+It's admin-curated on purpose. Each workflow must produce desktop and mobile composites at known nodes, and Firefly doesn't say which nodes those are. So listing every workflow in an author's Firefly account wouldn't produce usable results.
+
 ## Local Firefly bridge (DEMO ONLY)
 
 Adobe allows `localhost` sign-ins for tools that run on your own computer. The bridge is such a tool: it runs on the **operator's** computer, signs in with **their** Adobe account, and runs the queued jobs. Authors use the plugin as usual; with `FFCPE_MODE=bridge` the Prepare step shows a "Demo mode" notice and whether the bridge is online.
@@ -215,7 +233,7 @@ For local development, use `ref=local`. Workspace then loads the plugin from `ht
 
 ## Known limitations
 
-- Single Box connector, single store view, exact-SKU lookup, PNG/JPEG only, one workflow recipe.
+- Single Box connector, single store view, exact-SKU lookup, PNG/JPEG only, one admin-configured workflow (see [Choosing a workflow](#choosing-a-workflow); a curated picker is planned).
 - MCP mode depends on the run-workflow MCP's sign-in and tool contract (`run_workflow_submit`, `run_workflow_get_status`), which may change; api mode is the stable route.
 - Insertion only; the plugin cannot read or replace existing blocks.
 - Price is not shown in the spotlight. The block links to the PDP, where pricing uses the storefront's customer context.
