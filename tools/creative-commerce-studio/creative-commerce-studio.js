@@ -5,7 +5,7 @@
  *
  * UI: Spectrum Web Components, Spectrum 2 theme (vendor/spectrum.js, built from ./build).
  * Browser side only: catalog lookup (public storefront API), UI state and
- * block insertion. Box OAuth, Box downloads, FFCPE runs and Product Visuals
+ * block insertion. Box/Google Drive OAuth and downloads, FFCPE runs and image
  * delivery all happen in the App Builder backend; no tokens are stored here.
  */
 // eslint-disable-next-line import/no-unresolved
@@ -1016,7 +1016,7 @@ function renderReviewStep() {
   ];
   if (state.jobError) children.push(alert('negative', null, state.jobError));
   if (job.status === 'delivery-failed') {
-    children.push(alert('negative', 'Delivery to Product Visuals failed', `${job.message || 'Unknown error.'} The rendered images are kept; you can retry.`));
+    children.push(alert('negative', 'Delivery failed', `${job.message || 'Unknown error.'} The rendered images are kept; you can retry.`));
   }
   children.push(footer(
     button('Back', { variant: 'secondary', treatment: 'outline', onClick: () => goTo(2) }),
@@ -1026,7 +1026,7 @@ function renderReviewStep() {
         variant: 'accent', iconName: 'upload-to-cloud', pending: state.busy, onClick: onAccept,
       }),
   ));
-  return section('Review placements and copy', 'Accepting copies both images to Product Visuals, so the page never depends on expiring links.', ...children);
+  return section('Review placements and copy', 'Accepting stores both images permanently (Product Visuals or App Builder storage, as configured), so the page never depends on expiring links.', ...children);
 }
 
 function renderInsertStep() {

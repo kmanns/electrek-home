@@ -21,6 +21,23 @@ Workspace library plugin  (tools/creative-commerce-studio/)
 
 Author flow: **Product → Source → Prepare → Review → Insert**. The plugin only inserts the block. Publishing is still the normal Workspace action.
 
+## Screenshots
+
+The plugin in Experience Workspace's side panel, from a real end-to-end run (Google Drive → Firefly Creative Production → insert).
+
+<table>
+  <tr>
+    <td align="center"><img src="docs/images/01-product.jpg" width="200" alt="Product step: exact-SKU lookup shows the product, stock status and the product page link"><br><sub><b>1. Product</b>: exact-SKU lookup</sub></td>
+    <td align="center"><img src="docs/images/02-source.jpg" width="200" alt="Source step: Box or Google Drive picker, campaign folder thumbnails, selected packshot and authorization confirmation"><br><sub><b>2. Source</b>: Box or Google Drive, confirm the file</sub></td>
+    <td align="center"><img src="docs/images/03-prepare.jpg" width="200" alt="Prepare step: workflow steps, demo-mode notice, local Firefly bridge online, job delivered"><br><sub><b>3. Prepare</b>: Firefly Creative Production run</sub></td>
+  </tr>
+  <tr>
+    <td align="center"><img src="docs/images/04-review.jpg" width="200" alt="Review step: desktop 1200x896 and mobile 896x1200 placements with editable headline, description and CTA"><br><sub><b>4. Review</b>: placements and copy</sub></td>
+    <td align="center"><img src="docs/images/05-insert.jpg" width="200" alt="Insert step: summary of SKU, copy, presentation and permanent image URLs with the Insert into page button"><br><sub><b>5. Insert</b>: block at the cursor</sub></td>
+    <td></td>
+  </tr>
+</table>
+
 ## Status
 
 | Part | State |
@@ -142,7 +159,7 @@ Site config `https://da.live/config#/<org>/<site>/` → **library** sheet, add a
 
 | title | description | image | path | ref |
 |-------|-------------|-------|------|-----|
-| Creative Commerce Studio | Box packshot → FFCPE → shoppable spotlight | *(optional icon URL)* | `https://main--<site>--<org>.aem.page/tools/creative-commerce-studio/creative-commerce-studio.html` | |
+| Creative Commerce Studio | Box or Google Drive packshot → FFCPE → shoppable spotlight | `https://main--<site>--<org>.aem.page/tools/creative-commerce-studio/icon.svg` | `https://main--<site>--<org>.aem.page/tools/creative-commerce-studio/creative-commerce-studio.html` | |
 
 For local development, use `ref=local`. Workspace then loads the plugin from `http://localhost:3000`.
 
