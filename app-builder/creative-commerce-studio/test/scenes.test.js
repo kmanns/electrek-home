@@ -157,6 +157,17 @@ describe('workflows.json and scene inputs', () => {
     expect(problems.join('\n')).toMatch(/mobile mask looks\/w\/mm\.png is 1200×896 but its background looks\/w\/mb\.jpg is 896×1200/);
     expect(problems.join('\n')).toMatch(/x\.png \(Workshop\) is not a readable PNG or JPEG/);
   });
+
+  test('scene checks: a renamed file whose extension does not match its real type is flagged', () => {
+    const problems = scenes.check([
+      { file: 'looks/p/p-desktop-background.jpg', role: 'desktop-background', kind: sniff(h.png(1200, 896)) },
+      { file: 'looks/p/p-desktop-mask.png', role: 'desktop-mask', kind: sniff(jpeg(1200, 896)) },
+    ]);
+    expect(problems).toEqual([
+      expect.stringMatching(/p-desktop-background\.jpg is actually a PNG image\. Give it a \.png name, or convert it \(for example: sips -s format jpeg/),
+      expect.stringMatching(/p-desktop-mask\.png is actually a JPEG image\. Give it a \.jpg name/),
+    ]);
+  });
 });
 
 describe('runs with scene inputs', () => {

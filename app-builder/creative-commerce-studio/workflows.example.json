@@ -29,22 +29,22 @@
     "inputs": [
       {
         "nodeId": "<desktop-background-input-node>",
-        "file": "looks/workshop/desktop-background.jpg",
+        "file": "looks/workshop/workshop-desktop-background.jpg",
         "role": "desktop-background"
       },
       {
         "nodeId": "<desktop-mask-input-node>",
-        "file": "looks/workshop/desktop-mask.png",
+        "file": "looks/workshop/workshop-desktop-mask.png",
         "role": "desktop-mask"
       },
       {
         "nodeId": "<mobile-background-input-node>",
-        "file": "looks/workshop/mobile-background.jpg",
+        "file": "looks/workshop/workshop-mobile-background.jpg",
         "role": "mobile-background"
       },
       {
         "nodeId": "<mobile-mask-input-node>",
-        "file": "looks/workshop/mobile-mask.png",
+        "file": "looks/workshop/workshop-mobile-mask.png",
         "role": "mobile-mask"
       }
     ]

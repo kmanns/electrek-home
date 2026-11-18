@@ -134,10 +134,10 @@ Some workflows need more than the product photo. A "Campaign Looks" workflow, fo
   "desktopNodeId": "<desktop-composite-node>",
   "mobileNodeId": "<mobile-composite-node>",
   "inputs": [
-    { "nodeId": "<desktop-background-input-node>", "file": "looks/workshop/desktop-background.jpg", "role": "desktop-background" },
-    { "nodeId": "<desktop-mask-input-node>", "file": "looks/workshop/desktop-mask.png", "role": "desktop-mask" },
-    { "nodeId": "<mobile-background-input-node>", "file": "looks/workshop/mobile-background.jpg", "role": "mobile-background" },
-    { "nodeId": "<mobile-mask-input-node>", "file": "looks/workshop/mobile-mask.png", "role": "mobile-mask" }
+    { "nodeId": "<desktop-background-input-node>", "file": "looks/workshop/workshop-desktop-background.jpg", "role": "desktop-background" },
+    { "nodeId": "<desktop-mask-input-node>", "file": "looks/workshop/workshop-desktop-mask.png", "role": "desktop-mask" },
+    { "nodeId": "<mobile-background-input-node>", "file": "looks/workshop/workshop-mobile-background.jpg", "role": "mobile-background" },
+    { "nodeId": "<mobile-mask-input-node>", "file": "looks/workshop/workshop-mobile-mask.png", "role": "mobile-mask" }
   ]
 }
 ```
@@ -150,9 +150,9 @@ Authors only pick the product, the photo and the look. The scene images stay hid
 
 **Upload the list and the images** from the backend folder on your computer. `aio app use` must have been run there, because the command reads that workspace's `AIO_runtime_*` values from `.env`.
 
-1. Put each image at its `file` path under `looks/`, for example `looks/workshop/desktop-mask.png`. Images in that folder aren't committed.
+1. Put each image at its `file` path under `looks/`, for example `looks/workshop/workshop-desktop-mask.png`. Give every file a unique name, such as the look's name followed by its part, so they can't be mixed up in Firefly either. Images in that folder aren't committed.
 2. `npm run workflows:check` validates the list and every image and uploads nothing. It checks that:
-   - every file is present and really is a PNG or JPEG
+   - every file is present and really is a PNG or JPEG, and its extension matches its real type: renaming a `.png` to `.jpg` doesn't convert it
    - masks are PNG
    - each mask is exactly the size of its channel's background
    - any `width` or `height` you gave matches the file
