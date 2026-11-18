@@ -34,6 +34,10 @@ const STATUS = {
 
 const root = document.getElementById('ccs');
 
+const DEFAULT_COPY = {
+  headline: '', description: '', ctaLabel: 'Shop now', imageAlt: '', presentation: 'static',
+};
+
 const state = {
   step: 0,
   sdk: null, // { context, token, actions } when running inside Workspace
@@ -55,12 +59,12 @@ const state = {
   job: null,
   jobError: null,
   recent: [],
-  copy: {
-    headline: '', description: '', ctaLabel: 'Shop now', imageAlt: '', presentation: 'static',
-  },
+  copy: null, // set from DEFAULT_COPY below
+  inserted: false, // the current banner was inserted into the page
   busy: false,
   notice: null,
 };
+state.copy = { ...DEFAULT_COPY };
 
 /* ---------- tiny DOM helper (createElement only) ---------- */
 
@@ -168,7 +172,11 @@ async function onLookup() {
       state.product = null;
       state.productError = `No product with SKU “${sku}” in this store view.`;
     } else {
-      if (state.product?.sku !== product.sku) resetFrom(0);
+      if (state.product?.sku !== product.sku) {
+        resetFrom(0);
+        const oldAlt = !state.copy.imageAlt || state.copy.imageAlt === state.product?.name;
+        if (oldAlt) state.copy.imageAlt = product.name;
+      }
       state.product = product;
       if (!state.copy.imageAlt) state.copy.imageAlt = product.name;
     }
@@ -491,12 +499,52 @@ function onInsert() {
       setNotice('negative', 'Insertion is only available when the plugin is opened from a Workspace document.');
     } else {
       state.sdk.actions.sendHTML(html);
+      state.inserted = true;
       setNotice('positive', 'Spotlight inserted at your cursor. Save and preview the page to see it.');
     }
   } catch (e) {
     setNotice('negative', errorText(e));
   }
   render();
+}
+
+async function refreshRecent() {
+  if (!state.backendConfigured || !state.sdk) return;
+  try {
+    state.recent = (await state.backend.jobRecent()).jobs || [];
+  } catch (e) { /* recent jobs are a convenience */ }
+}
+
+/**
+ * Starts another banner. Connections, the open source folder and the workflow choice are
+ * kept; the finished job stays in Recent jobs, so nothing is lost.
+ * keepProduct: true goes straight to Source for the same product; false starts at Product.
+ */
+function onStartNew({ keepProduct }) {
+  const accepted = state.job?.status === 'accepted';
+  if (accepted && !state.inserted
+    // eslint-disable-next-line no-alert
+    && !window.confirm('This banner hasn’t been inserted into the page yet. It stays in Recent jobs, so you can come back to it. Start a new one?')) return;
+  stopPolling();
+  state.job = null;
+  state.jobError = null;
+  state.file = null;
+  state.confirmed = false;
+  state.inserted = false;
+  state.copy = { ...DEFAULT_COPY, imageAlt: keepProduct ? state.product?.name || '' : '' };
+  if (!keepProduct) {
+    state.product = null;
+    state.sku = '';
+    state.productError = null;
+  }
+  setNotice(null);
+  state.step = keepProduct ? 1 : 0;
+  render();
+  refreshRecent().then(render);
+  // Put focus where the next action is.
+  setTimeout(() => {
+    if (!keepProduct) document.querySelector('#ccs-sku')?.focus();
+  }, 0);
 }
 
 async function onResume(job) {
@@ -514,6 +562,7 @@ async function onResume(job) {
     if (job.recipe?.workflowKey) state.workflowKey = job.recipe.workflowKey;
     state.confirmed = true;
     state.job = job;
+    state.inserted = false;
     state.copy.imageAlt = state.copy.imageAlt || product.name;
     if (job.status === 'accepted') state.step = 4;
     else if (job.status === 'ready-for-review') state.step = 3;
@@ -1148,12 +1197,28 @@ function renderInsertStep() {
   if (state.notice) children.push(alert(state.notice.type, null, state.notice.text));
   children.push(footer(
     button('Edit copy', { variant: 'secondary', treatment: 'outline', onClick: () => goTo(3) }),
-    button('Insert into page', {
-      variant: 'accent', disabled: !state.sdk, onClick: onInsert,
+    button(state.inserted ? 'Insert again' : 'Insert into page', {
+      variant: state.inserted ? 'secondary' : 'accent', disabled: !state.sdk, onClick: onInsert,
     }),
     state.sdk?.actions?.closeLibrary
       ? button('Close', { variant: 'secondary', treatment: 'outline', onClick: () => state.sdk.actions.closeLibrary() })
       : null,
+  ));
+  children.push(h(
+    'div',
+    { class: 'ccs-card is-subtle ccs-next' },
+    h('p', { class: 'ccs-strong', text: 'Make another banner' }),
+    h('p', { class: 'ccs-detail', text: 'Your connections and workflow choice are kept. This banner stays in Recent jobs.' }),
+    h(
+      'div',
+      { class: 'ccs-row ccs-next-actions' },
+      button('New banner', {
+        variant: state.inserted ? 'accent' : 'secondary', iconName: 'magic-wand', onClick: () => onStartNew({ keepProduct: false }),
+      }),
+      button(`Another for ${state.product?.sku || 'this product'}`, {
+        variant: 'secondary', treatment: 'outline', onClick: () => onStartNew({ keepProduct: true }),
+      }),
+    ),
   ));
   return section('Insert into the page', 'Adds a Creative Product Spotlight block at your cursor. Nothing is published; save and preview the page as usual.', ...children);
 }

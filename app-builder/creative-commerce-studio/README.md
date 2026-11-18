@@ -5,7 +5,7 @@
 > [!WARNING]
 > **Demo build — not production-ready.** Firefly runs go through a **local bridge on the operator's computer** using that person's own Adobe sign-in. Approved images are stored in App Builder public storage, not Product Visuals. Production needs Firefly Services API access (Developer role and a server-to-server credential in the Firefly org) and an AEM server-to-server credential, among other things. **Read [PRODUCTION-READINESS.md](PRODUCTION-READINESS.md) before installing or relying on this.**
 
-Turns product masters in **Box** into shoppable, placement-ready storefront content inside **Experience Workspace**, using **Firefly Creative Production** for the imagery and **Adobe Commerce** for the product link.
+Turns product masters in **Box** or **Google Drive** into shoppable, placement-ready storefront content inside **Experience Workspace**, using **Firefly Creative Production** for the imagery and **Adobe Commerce** for the product link.
 
 ```
 Workspace library plugin  (tools/creative-commerce-studio/)
@@ -19,7 +19,9 @@ Workspace library plugin  (tools/creative-commerce-studio/)
   └─ insert at cursor ───────► Creative Product Spotlight block (blocks/creative-product-spotlight/)
 ```
 
-Author flow: **Product → Source → Prepare → Review → Insert**. The plugin only inserts the block. Publishing is still the normal Workspace action.
+Author flow: **Product → Source → Prepare → Review → Insert**, then **New banner** to make another. The plugin only inserts the block. Publishing is still the normal Workspace action.
+
+> **Requirements and every value to fill in:** see [Before you start](https://github.com/kmanns/creative-commerce-studio#before-you-start) in the reference repo. It covers the application requirements, who needs which access, and each `.env` setting, credential and secret, with where to get it.
 
 ## Screenshots
 
@@ -44,9 +46,9 @@ The plugin in Experience Workspace's side panel, from a real end-to-end run (Goo
 |------|-------|
 | Spotlight block | Built and browser-tested: desktop/mobile, missing SKU, reduced motion, long copy |
 | Workspace plugin | Built and tested in a simulated Workspace frame with a mocked backend |
-| App Builder actions | Built, unit-tested (`npm test`, 33 tests). Stage deploy with Box verified in Workspace |
+| App Builder actions | Built, unit-tested (`npm test`, 83 tests). Stage deploy verified in Workspace |
 | Box | Connect + folder listing verified in Workspace (2026-11-11); end-to-end runs 2026-11-13 |
-| Google Drive | Built and unit/browser-tested with mocks (2026-11-13); needs a Google OAuth client to run live |
+| Google Drive | End-to-end runs verified in Workspace |
 | FFCPE | Workflow contract verified with a real MCP run (2026-11-12). Hosted sign-in refused by Adobe policy; **demo runs via the local bridge**; production needs the api credential |
 | Product Visuals | Needs an AEM server-to-server credential; until then delivery uses App Builder public storage |
 
