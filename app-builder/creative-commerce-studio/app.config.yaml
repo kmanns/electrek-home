@@ -22,6 +22,7 @@ application:
           GDRIVE_ALLOWED_FOLDER_ID: $GDRIVE_ALLOWED_FOLDER_ID
           FFCPE_MODE: $FFCPE_MODE
           BRIDGE_TOKEN: $BRIDGE_TOKEN
+          ADMIN_TOKEN: $ADMIN_TOKEN
           FFCPE_MCP_URL: $FFCPE_MCP_URL
           FIREFLY_REDIRECT_URI: $FIREFLY_REDIRECT_URI
           FIREFLY_CLIENT_NAME: $FIREFLY_CLIENT_NAME
@@ -132,6 +133,11 @@ application:
             annotations: *web
           firefly-disconnect:
             function: actions/firefly-disconnect/index.js
+            web: 'yes'
+            runtime: nodejs:22
+            annotations: *web
+          workflows-upload-urls:
+            function: actions/workflows-upload-urls/index.js
             web: 'yes'
             runtime: nodejs:22
             annotations: *web
