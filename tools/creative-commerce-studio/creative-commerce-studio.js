@@ -11,7 +11,7 @@
 // eslint-disable-next-line import/no-unresolved
 import DA_SDK from 'https://da.live/nx/utils/sdk.js';
 import './vendor/spectrum.js';
-import { lookupProduct } from './lib/catalog.js';
+import { lookupProduct, loadSiteConfig } from './lib/catalog.js';
 import { createBackend, BackendError } from './lib/backend.js';
 import { buildSpotlightHTML } from './lib/block-table.js';
 
@@ -34,6 +34,10 @@ const STATUS = {
 
 const root = document.getElementById('ccs');
 
+const DEFAULT_COPY = {
+  headline: '', description: '', ctaLabel: 'Shop now', imageAlt: '', presentation: 'static',
+};
+
 const state = {
   step: 0,
   sdk: null, // { context, token, actions } when running inside Workspace
@@ -55,12 +59,15 @@ const state = {
   job: null,
   jobError: null,
   recent: [],
-  copy: {
-    headline: '', description: '', ctaLabel: 'Shop now', imageAlt: '', presentation: 'static',
-  },
+  copy: null, // set from DEFAULT_COPY below
+  inserted: false, // the current banner was inserted into the page
+  catalogConfigured: null, // the site config has a commerce-endpoint
+  setup: { checked: false, data: null, error: null }, // setup-status (null data: older backend)
+  setupOpen: null, // null: open automatically when something blocks a run
   busy: false,
   notice: null,
 };
+state.copy = { ...DEFAULT_COPY };
 
 /* ---------- tiny DOM helper (createElement only) ---------- */
 
@@ -168,7 +175,11 @@ async function onLookup() {
       state.product = null;
       state.productError = `No product with SKU “${sku}” in this store view.`;
     } else {
-      if (state.product?.sku !== product.sku) resetFrom(0);
+      if (state.product?.sku !== product.sku) {
+        resetFrom(0);
+        const oldAlt = !state.copy.imageAlt || state.copy.imageAlt === state.product?.name;
+        if (oldAlt) state.copy.imageAlt = product.name;
+      }
       state.product = product;
       if (!state.copy.imageAlt) state.copy.imageAlt = product.name;
     }
@@ -304,6 +315,176 @@ async function refreshWorkflows() {
     // Older backends have no workflows-list: the backend's single workflow is used.
     state.workflows = { checked: true, list: [], error: null };
   }
+}
+
+/* ---------- setup check ---------- */
+
+const DOCS = 'https://github.com/kmanns/creative-commerce-studio';
+const DOC = {
+  values: `${DOCS}#3-values-credentials-and-secrets-youll-fill-in`,
+  install: `${DOCS}#install`,
+  workflows: `${DOCS}#choosing-a-workflow`,
+  production: `${DOCS}#production-readiness`,
+  bridge: `${DOCS}/blob/main/backend/README.md#local-firefly-bridge-demo-only`,
+  troubleshooting: `${DOCS}/blob/main/backend/README.md#troubleshooting`,
+};
+
+async function refreshSetup() {
+  if (!state.backendConfigured || !state.sdk) return;
+  try {
+    state.setup = { checked: true, data: await state.backend.setupStatus(), error: null };
+  } catch (e) {
+    // Older backends have no setup-status: the panel falls back to the other status calls.
+    const older = e instanceof BackendError && e.status === 404;
+    state.setup = { checked: true, data: null, error: older ? null : errorText(e) };
+  }
+}
+
+async function onRecheckSetup() {
+  state.setup = { ...state.setup, checked: false };
+  render();
+  await Promise.all([refreshSetup(), refreshSources(), refreshFirefly(), refreshWorkflows()]);
+  render();
+}
+
+/**
+ * Setup items: { level: ok | warn | error | info, label, detail, who: admin | you | null, link }.
+ * "error" blocks a run, "warn" may block it, "info" is for awareness.
+ */
+function setupItems() {
+  const items = [];
+  const add = (level, label, detail, extra = {}) => items.push({
+    level, label, detail, who: null, link: null, ...extra,
+  });
+  if (!state.sdk) {
+    add('error', 'Workspace', 'Open this plugin from a document in Experience Workspace to sign in and insert blocks.', { who: 'you' });
+  } else add('ok', 'Workspace', 'Opened from a Workspace document.');
+  if (state.catalogConfigured === false) {
+    add('error', 'Commerce catalog', 'The site config has no commerce-endpoint, so products can’t be looked up.', { who: 'admin', link: DOC.values });
+  } else if (state.catalogConfigured) add('ok', 'Commerce catalog', 'The site’s storefront catalog is configured.');
+  if (!state.backendConfigured) {
+    add('error', 'Backend', 'The site config has no Creative Commerce Studio backend-url.', { who: 'admin', link: DOC.values });
+    return items;
+  }
+  if (!state.sdk) return items;
+  if (!state.setup.checked) {
+    add('info', 'Backend', 'Checking the setup…');
+    return items;
+  }
+  if (state.setup.error) {
+    add('error', 'Backend', `${state.setup.error} Check that the backend is deployed and that ALLOWED_ORIGINS includes this Workspace origin (${window.location.origin}).`, { who: 'admin', link: DOC.troubleshooting });
+    return items;
+  }
+  add('ok', 'Backend', 'Reachable, and you’re signed in.');
+  const d = state.setup.data || {
+    sources: state.sources.list.map((x) => ({ ...x, configured: true })),
+    firefly: {
+      mode: state.firefly.mode, connected: state.firefly.connected, error: state.firefly.error,
+    },
+    workflows: {
+      count: state.workflows.list.length || 1,
+      labels: state.workflows.list.map((w) => w.label),
+      scenesMissing: [],
+    },
+  };
+  if (d.encryptionKey === false) {
+    add('error', 'Encryption key', 'TOKEN_ENCRYPTION_KEY is missing or isn’t 32 bytes (base64), so sign-ins can’t be stored.', { who: 'admin', link: DOC.values });
+  }
+  const configured = (d.sources || []).filter((x) => x.configured);
+  if (!configured.length) {
+    add('error', 'File sources', 'Neither Box nor Google Drive is set up.', { who: 'admin', link: DOC.values });
+  } else if (!configured.some((x) => x.connected)) {
+    add('info', 'File sources', `${configured.map((x) => x.label).join(' and ')} available. Connect your account on the Source step.`, { who: 'you' });
+  } else {
+    add('ok', 'File sources', `${configured.filter((x) => x.connected).map((x) => x.label).join(' and ')} connected.`);
+  }
+  const ff = d.firefly || {};
+  if (ff.error) add('error', 'Firefly', ff.error, { who: 'admin', link: DOC.troubleshooting });
+  else if (ff.mode === 'bridge') {
+    if (ff.connected) add('ok', 'Firefly', 'Local bridge online (demo mode).');
+    else add('warn', 'Firefly', 'The local Firefly bridge is offline. Runs wait until the operator starts “npm run bridge”.', { who: 'admin', link: DOC.bridge });
+  } else if (ff.mode === 'api') add('ok', 'Firefly', 'Server-to-server credential (production mode).');
+  else if (ff.mode === 'mcp') {
+    if (ff.connected) add('ok', 'Firefly', 'Connected with your Adobe account.');
+    else add('warn', 'Firefly', 'Connect Firefly on the Prepare step. Adobe currently refuses hosted sign-in, so the site may need bridge or api mode.', { who: 'you', link: DOC.production });
+  }
+  const wf = d.workflows || {};
+  if (wf.error) add('error', 'Workflows', wf.error, { who: 'admin', link: DOC.workflows });
+  else if (!wf.count) add('error', 'Workflows', 'No Firefly Creative Production workflow is configured.', { who: 'admin', link: DOC.workflows });
+  else {
+    const names = (wf.labels || []).join(', ');
+    add('ok', 'Workflows', `${wf.count} available${names ? `: ${names}` : ''}.`);
+    (wf.scenesMissing || []).forEach((m) => add('warn', 'Scene images', `${m.count} scene image${m.count === 1 ? '' : 's'} for “${m.workflow}” ${m.count === 1 ? 'isn’t' : 'aren’t'} uploaded, so it can’t run. Upload them with “npm run workflows:upload”.`, { who: 'admin', link: DOC.workflows }));
+  }
+  const del = d.delivery;
+  if (del?.error) add('error', 'Delivery', del.error, { who: 'admin', link: DOC.values });
+  else if (del?.mode === 'public') add('info', 'Delivery', 'Approved images go to App Builder public storage (demo setup). Production uses Product Visuals.', { link: DOC.production });
+  else if (del?.mode === 'aem') add('ok', 'Delivery', 'Approved images go to Product Visuals (AEM Assets).');
+  return items;
+}
+
+const SETUP_LIGHT = {
+  ok: 'positive', warn: 'notice', error: 'negative', info: 'info',
+};
+
+function renderSetupCheck() {
+  const items = setupItems();
+  const errors = items.filter((i) => i.level === 'error').length;
+  const warnings = items.filter((i) => i.level === 'warn').length;
+  const checking = state.sdk && state.backendConfigured && !state.setup.checked;
+  const open = state.setupOpen ?? (errors > 0);
+  let summary = 'Ready';
+  let variant = 'positive';
+  if (checking) {
+    summary = 'Checking…';
+    variant = 'neutral';
+  } else if (errors) {
+    summary = `${errors} to fix before you can run`;
+    variant = 'negative';
+  } else if (warnings) {
+    summary = `${warnings} to check`;
+    variant = 'notice';
+  }
+  const card = h(
+    'div',
+    { class: `ccs-card is-subtle ccs-setup${open ? ' is-open' : ''}` },
+    h(
+      'div',
+      { class: 'ccs-row ccs-setup-head' },
+      h('sp-status-light', { variant, size: 's', text: `Setup check · ${summary}` }),
+      h('sp-action-button', {
+        size: 's', quiet: true, 'aria-expanded': String(open), onClick: () => { state.setupOpen = !open; render(); },
+      }, open ? 'Hide' : 'Details'),
+    ),
+  );
+  if (open) {
+    const list = h('ul', { class: 'ccs-setup-list' });
+    items.forEach((it) => list.append(h(
+      'li',
+      { class: `is-${it.level}` },
+      h('sp-status-light', { variant: SETUP_LIGHT[it.level], size: 's', text: it.label }),
+      h('p', { class: 'ccs-detail', text: it.detail }),
+      it.who || it.link
+        ? h(
+          'p',
+          { class: 'ccs-detail ccs-setup-meta' },
+          it.who ? h('span', { class: 'ccs-setup-who', text: it.who === 'admin' ? 'Site admin' : 'You' }) : null,
+          it.link ? h('a', {
+            href: it.link, target: '_blank', rel: 'noopener', text: it.level === 'ok' || it.level === 'info' ? 'Learn more' : 'How to fix',
+          }) : null,
+        )
+        : null,
+    )));
+    card.append(list, h(
+      'div',
+      { class: 'ccs-row' },
+      h('sp-action-button', { size: 's', quiet: true, onClick: onRecheckSetup }, icon('refresh', 'icon'), 'Check again'),
+      h('a', {
+        class: 'ccs-detail', href: DOC.install, target: '_blank', rel: 'noopener', text: 'Setup guide',
+      }),
+    ));
+  }
+  return card;
 }
 
 function currentWorkflow() {
@@ -491,12 +672,52 @@ function onInsert() {
       setNotice('negative', 'Insertion is only available when the plugin is opened from a Workspace document.');
     } else {
       state.sdk.actions.sendHTML(html);
+      state.inserted = true;
       setNotice('positive', 'Spotlight inserted at your cursor. Save and preview the page to see it.');
     }
   } catch (e) {
     setNotice('negative', errorText(e));
   }
   render();
+}
+
+async function refreshRecent() {
+  if (!state.backendConfigured || !state.sdk) return;
+  try {
+    state.recent = (await state.backend.jobRecent()).jobs || [];
+  } catch (e) { /* recent jobs are a convenience */ }
+}
+
+/**
+ * Starts another banner. Connections, the open source folder and the workflow choice are
+ * kept; the finished job stays in Recent jobs, so nothing is lost.
+ * keepProduct: true goes straight to Source for the same product; false starts at Product.
+ */
+function onStartNew({ keepProduct }) {
+  const accepted = state.job?.status === 'accepted';
+  if (accepted && !state.inserted
+    // eslint-disable-next-line no-alert
+    && !window.confirm('This banner hasn’t been inserted into the page yet. It stays in Recent jobs, so you can come back to it. Start a new one?')) return;
+  stopPolling();
+  state.job = null;
+  state.jobError = null;
+  state.file = null;
+  state.confirmed = false;
+  state.inserted = false;
+  state.copy = { ...DEFAULT_COPY, imageAlt: keepProduct ? state.product?.name || '' : '' };
+  if (!keepProduct) {
+    state.product = null;
+    state.sku = '';
+    state.productError = null;
+  }
+  setNotice(null);
+  state.step = keepProduct ? 1 : 0;
+  render();
+  refreshRecent().then(render);
+  // Put focus where the next action is.
+  setTimeout(() => {
+    if (!keepProduct) document.querySelector('#ccs-sku')?.focus();
+  }, 0);
 }
 
 async function onResume(job) {
@@ -514,6 +735,7 @@ async function onResume(job) {
     if (job.recipe?.workflowKey) state.workflowKey = job.recipe.workflowKey;
     state.confirmed = true;
     state.job = job;
+    state.inserted = false;
     state.copy.imageAlt = state.copy.imageAlt || product.name;
     if (job.status === 'accepted') state.step = 4;
     else if (job.status === 'ready-for-review') state.step = 3;
@@ -643,6 +865,7 @@ function renderProductStep() {
   if (state.productError) field.append(h('sp-help-text', { slot: 'negative-help-text', icon: true, text: state.productError }));
 
   const children = [
+    renderSetupCheck(),
     h('sp-field-label', { for: 'ccs-sku', text: 'Exact SKU', required: true }),
     h('div', { class: 'ccs-inline' }, field, button('Look up', {
       variant: 'primary', treatment: 'outline', pending: state.busy, onClick: onLookup,
@@ -1148,12 +1371,28 @@ function renderInsertStep() {
   if (state.notice) children.push(alert(state.notice.type, null, state.notice.text));
   children.push(footer(
     button('Edit copy', { variant: 'secondary', treatment: 'outline', onClick: () => goTo(3) }),
-    button('Insert into page', {
-      variant: 'accent', disabled: !state.sdk, onClick: onInsert,
+    button(state.inserted ? 'Insert again' : 'Insert into page', {
+      variant: state.inserted ? 'secondary' : 'accent', disabled: !state.sdk, onClick: onInsert,
     }),
     state.sdk?.actions?.closeLibrary
       ? button('Close', { variant: 'secondary', treatment: 'outline', onClick: () => state.sdk.actions.closeLibrary() })
       : null,
+  ));
+  children.push(h(
+    'div',
+    { class: 'ccs-card is-subtle ccs-next' },
+    h('p', { class: 'ccs-strong', text: 'Make another banner' }),
+    h('p', { class: 'ccs-detail', text: 'Your connections and workflow choice are kept. This banner stays in Recent jobs.' }),
+    h(
+      'div',
+      { class: 'ccs-row ccs-next-actions' },
+      button('New banner', {
+        variant: state.inserted ? 'accent' : 'secondary', iconName: 'magic-wand', onClick: () => onStartNew({ keepProduct: false }),
+      }),
+      button(`Another for ${state.product?.sku || 'this product'}`, {
+        variant: 'secondary', treatment: 'outline', onClick: () => onStartNew({ keepProduct: true }),
+      }),
+    ),
   ));
   return section('Insert into the page', 'Adds a Creative Product Spotlight block at your cursor. Nothing is published; save and preview the page as usual.', ...children);
 }
@@ -1206,6 +1445,11 @@ async function init() {
   } catch (e) {
     state.backendConfigured = false;
   }
+  try {
+    state.catalogConfigured = !!(await loadSiteConfig())['commerce-endpoint'];
+  } catch (e) {
+    state.catalogConfigured = false;
+  }
   render();
   if (state.backendConfigured && state.sdk) {
     try {
@@ -1214,6 +1458,7 @@ async function init() {
     await refreshSources();
     await refreshFirefly();
     await refreshWorkflows();
+    await refreshSetup();
     render();
   }
 }

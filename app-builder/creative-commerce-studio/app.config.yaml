@@ -136,6 +136,11 @@ application:
             web: 'yes'
             runtime: nodejs:22
             annotations: *web
+          setup-status:
+            function: actions/setup-status/index.js
+            web: 'yes'
+            runtime: nodejs:22
+            annotations: *web
           workflows-upload-urls:
             function: actions/workflows-upload-urls/index.js
             web: 'yes'
