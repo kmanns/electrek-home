@@ -32,11 +32,11 @@ function mcpUrl(params) {
   return url;
 }
 
-function requireConfig(params) {
+async function requireConfig(params) {
   if (!params.FIREFLY_REDIRECT_URI) throw new AppError(500, 'misconfigured', 'Firefly Creative Production is not configured (FIREFLY_REDIRECT_URI missing).');
   // eslint-disable-next-line global-require
-  if (!require('./workflows').list(params).length) {
-    throw new AppError(500, 'misconfigured', 'Firefly Creative Production is not configured (FFCPE_WORKFLOWS or FFCPE_WORKFLOW_ID missing).');
+  if (!(await require('./workflows').list(params)).length) {
+    throw new AppError(500, 'misconfigured', 'Firefly Creative Production is not configured (workflows.json, FFCPE_WORKFLOWS or FFCPE_WORKFLOW_ID missing).');
   }
 }
 
@@ -99,7 +99,7 @@ function pkce() {
 }
 
 async function startAuth(params, user, fetchImpl = fetch) {
-  requireConfig(params);
+  await requireConfig(params);
   const meta = await metadata(params, fetchImpl);
   const { clientId } = await client(params, fetchImpl);
   const nonce = randomId();
@@ -173,7 +173,7 @@ async function saveConnection(params, user, tokens) {
 }
 
 async function completeAuth(params, { code, state, error }, fetchImpl = fetch) {
-  requireConfig(params);
+  await requireConfig(params);
   if (!state || !/^[\w-]{20,64}$/.test(state)) return { ok: false, message: 'Missing or invalid sign-in state.' };
   const pending = await store.getJSON(stateKey(state));
   await store.del(stateKey(state)).catch(() => {});

@@ -133,7 +133,7 @@ describe('jobs', () => {
     expect(JSON.stringify(submitted)).not.toMatch(/files\.example|filePath/);
 
     const execCall = f.calls.find((c) => c.url.endsWith('/batch/execute'));
-    expect(JSON.parse(execCall.init.body)).toEqual({ workflow: { workflowId: 'wf-1', inputs: [[{ node_id: 'node_product', content: [{ presignedUrl: expect.stringMatching(/^https:\/\/files\.example\/ccs\/.+\/source\.png/) }] }]] } });
+    expect(JSON.parse(execCall.init.body)).toEqual({ workflow: { workflowId: 'wf-1' }, inputs: [{ node_id: 'node_product', content: [{ sourceUrl: expect.stringMatching(/^https:\/\/files\.example\/ccs\/.+\/source\.png/), name: 'bga200.png' }] }] });
     expect(execCall.init.headers['Idempotency-Key']).toBe(submitted.id);
     expect(execCall.init.headers['x-gw-ims-org-id']).toBe('ORG@AdobeOrg');
 

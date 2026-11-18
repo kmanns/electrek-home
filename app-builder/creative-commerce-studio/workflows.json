@@ -1,0 +1,124 @@
+[
+  {
+    "key": "spotlight",
+    "label": "Product spotlight",
+    "description": "Cutout of the product photo placed in the desktop and mobile layouts.",
+    "steps": [
+      "Remove background",
+      "Place in the desktop layout",
+      "Place in the mobile layout"
+    ],
+    "workflowId": "ddcda008-3dd4-4d28-875b-dc8148fbc814",
+    "productNodeId": "node_1794411704_fb137ab0",
+    "desktopNodeId": "node_1794411704_f56712fd",
+    "mobileNodeId": "node_1794411704_a75476e0"
+  },
+  {
+    "key": "look-premium-studio",
+    "label": "Campaign Look: Premium Studio",
+    "description": "The product photo composited into the pre-approved Premium Studio scene.",
+    "steps": [
+      "Remove background",
+      "Composite into the Premium Studio desktop scene",
+      "Composite into the Premium Studio mobile scene"
+    ],
+    "workflowId": "0a06005b-7a67-43a4-b359-fd1eb236d7f1",
+    "productNodeId": "node_1794859332_81009703",
+    "desktopNodeId": "node_1794859332_4154bf97",
+    "mobileNodeId": "node_1794859332_70dfe366",
+    "inputs": [
+      {
+        "nodeId": "node_1794859332_632333d2",
+        "file": "looks/premium-studio/desktop-background.jpg",
+        "role": "desktop-background"
+      },
+      {
+        "nodeId": "node_1794859332_820db7fd",
+        "file": "looks/premium-studio/desktop-mask.png",
+        "role": "desktop-mask"
+      },
+      {
+        "nodeId": "node_1794859332_c43928ef",
+        "file": "looks/premium-studio/mobile-background.jpg",
+        "role": "mobile-background"
+      },
+      {
+        "nodeId": "node_1794859332_b235a924",
+        "file": "looks/premium-studio/mobile-mask.png",
+        "role": "mobile-mask"
+      }
+    ]
+  },
+  {
+    "key": "look-workshop",
+    "label": "Campaign Look: Workshop",
+    "description": "The product photo composited into the pre-approved Workshop scene.",
+    "steps": [
+      "Remove background",
+      "Composite into the Workshop desktop scene",
+      "Composite into the Workshop mobile scene"
+    ],
+    "workflowId": "0a06005b-7a67-43a4-b359-fd1eb236d7f1",
+    "productNodeId": "node_1794859332_81009703",
+    "desktopNodeId": "node_1794859332_4154bf97",
+    "mobileNodeId": "node_1794859332_70dfe366",
+    "inputs": [
+      {
+        "nodeId": "node_1794859332_632333d2",
+        "file": "looks/workshop/desktop-background.jpg",
+        "role": "desktop-background"
+      },
+      {
+        "nodeId": "node_1794859332_820db7fd",
+        "file": "looks/workshop/desktop-mask.png",
+        "role": "desktop-mask"
+      },
+      {
+        "nodeId": "node_1794859332_c43928ef",
+        "file": "looks/workshop/mobile-background.jpg",
+        "role": "mobile-background"
+      },
+      {
+        "nodeId": "node_1794859332_b235a924",
+        "file": "looks/workshop/mobile-mask.png",
+        "role": "mobile-mask"
+      }
+    ]
+  },
+  {
+    "key": "look-holiday-gifting",
+    "label": "Campaign Look: Holiday Gifting",
+    "description": "The product photo composited into the pre-approved Holiday Gifting scene.",
+    "steps": [
+      "Remove background",
+      "Composite into the Holiday Gifting desktop scene",
+      "Composite into the Holiday Gifting mobile scene"
+    ],
+    "workflowId": "0a06005b-7a67-43a4-b359-fd1eb236d7f1",
+    "productNodeId": "node_1794859332_81009703",
+    "desktopNodeId": "node_1794859332_4154bf97",
+    "mobileNodeId": "node_1794859332_70dfe366",
+    "inputs": [
+      {
+        "nodeId": "node_1794859332_632333d2",
+        "file": "looks/holiday-gifting/desktop-background.jpg",
+        "role": "desktop-background"
+      },
+      {
+        "nodeId": "node_1794859332_820db7fd",
+        "file": "looks/holiday-gifting/desktop-mask.png",
+        "role": "desktop-mask"
+      },
+      {
+        "nodeId": "node_1794859332_c43928ef",
+        "file": "looks/holiday-gifting/mobile-background.jpg",
+        "role": "mobile-background"
+      },
+      {
+        "nodeId": "node_1794859332_b235a924",
+        "file": "looks/holiday-gifting/mobile-mask.png",
+        "role": "mobile-mask"
+      }
+    ]
+  }
+]

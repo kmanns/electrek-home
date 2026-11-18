@@ -440,6 +440,20 @@ body {
   aspect-ratio: 896 / 1200;
 }
 
+/* ---------- partial results (one placement failed) ---------- */
+
+.ccs-channels {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spectrum-spacing-100);
+  margin-block-start: var(--spectrum-spacing-100);
+}
+
+.ccs-preview.is-failed .ccs-preview-missing {
+  outline: 1px dashed var(--spectrum-negative-border-color-default, var(--spectrum-red-800));
+  outline-offset: -1px;
+}
+
 /* ---------- insert summary ---------- */
 
 .ccs-summary {

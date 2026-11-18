@@ -71,9 +71,15 @@ describe('ffcpe contract helpers', () => {
     const body = ffcpe.fillTemplate('{"workflowId":"{{workflowId}}","inputs":[{"name":"{{sku}}","url":"{{sourceUrl}}"}]}', { workflowId: 'wf', sku: 'A"B', sourceUrl: 'https://x/y?a=1&b=2' });
     expect(body).toEqual({ workflowId: 'wf', inputs: [{ name: 'A"B', url: 'https://x/y?a=1&b=2' }] });
   });
-  test('default template mirrors the Execute Graph body', () => {
-    expect(ffcpe.fillTemplate(ffcpe.DEFAULT_TEMPLATE, { workflowId: 'wf', productNodeId: 'n1', sourceUrl: 'https://s/1.png' }))
-      .toEqual({ workflow: { workflowId: 'wf', inputs: [[{ node_id: 'n1', content: [{ presignedUrl: 'https://s/1.png' }] }]] } });
+  test('default body matches a published workflow\'s generated API request', () => {
+    expect(ffcpe.buildBody('wf', [{ nodeId: 'n1', url: 'https://s/1.png', name: '1.png' }, { nodeId: 'n2', url: 'https://s/bg.jpg', name: 'bg.jpg' }]))
+      .toEqual({
+        workflow: { workflowId: 'wf' },
+        inputs: [
+          { node_id: 'n1', content: [{ sourceUrl: 'https://s/1.png', name: '1.png' }] },
+          { node_id: 'n2', content: [{ sourceUrl: 'https://s/bg.jpg', name: 'bg.jpg' }] },
+        ],
+      });
   });
   test('refuses unknown placeholders', () => {
     expect(() => ffcpe.fillTemplate('{"x":"{{nope}}"}', {})).toThrow(/unknown placeholder/);

@@ -14,8 +14,17 @@ const { AppError } = require('./http');
 const IMS_TOKEN = 'https://ims-na1.adobelogin.com/ims/token/v3';
 const DEFAULT_BASE = 'https://run-workflow.adobe.io';
 const DEFAULT_SCOPES = 'openid,AdobeID,session,additional_info,read_organizations,firefly_api,ff_apis';
-// Mirrors the published workflow's Execute Graph body: inputs are nested per asset.
-const DEFAULT_TEMPLATE = '{"workflow":{"workflowId":"{{workflowId}}","inputs":[[{"node_id":"{{productNodeId}}","content":[{"presignedUrl":"{{sourceUrl}}"}]}]]}}';
+/**
+ * Body for one run, in the shape a published workflow's generated API request uses:
+ *   { workflow: { workflowId }, inputs: [{ node_id, content: [{ sourceUrl, name }] }] }
+ * One entry per input node (the product photo first, then any fixed scene images).
+ */
+function buildBody(workflowId, inputs) {
+  return {
+    workflow: { workflowId },
+    inputs: inputs.map((i) => ({ node_id: i.nodeId, content: [{ sourceUrl: i.url, name: i.name }] })),
+  };
+}
 
 let cachedToken = null; // { token, exp } per warm container
 
@@ -87,10 +96,25 @@ async function call(params, method, path, body, fetchImpl = fetch, extraHeaders 
   return json;
 }
 
-/** Starts one batch for one source asset. Returns { batchId }. */
+/**
+ * Starts one batch for one source asset. Returns { batchId }.
+ * values.inputs: [{ nodeId, url, name }] (product first). FFCPE_EXECUTE_TEMPLATE, if set,
+ * replaces the body but only supports product-only workflows.
+ */
 async function execute(params, values, fetchImpl = fetch, { idempotencyKey } = {}) {
   requireConfig(params);
-  const body = fillTemplate(params.FFCPE_EXECUTE_TEMPLATE || DEFAULT_TEMPLATE, { workflowId: params.FFCPE_WORKFLOW_ID, ...values });
+  const inputs = values.inputs || [{ nodeId: values.productNodeId, url: values.sourceUrl, name: values.sourceName }];
+  let body;
+  if (params.FFCPE_EXECUTE_TEMPLATE) {
+    if (inputs.length > 1) {
+      throw new AppError(500, 'misconfigured', 'FFCPE_EXECUTE_TEMPLATE only supports workflows with the product photo as their only input. Remove it to run workflows with scene images.');
+    }
+    const placeholders = { ...values };
+    delete placeholders.inputs;
+    body = fillTemplate(params.FFCPE_EXECUTE_TEMPLATE, { workflowId: params.FFCPE_WORKFLOW_ID, ...placeholders });
+  } else {
+    body = buildBody(params.FFCPE_WORKFLOW_ID, inputs);
+  }
   const raw = await call(params, 'POST', '/batch/execute', body, fetchImpl, idempotencyKey ? { 'Idempotency-Key': idempotencyKey } : {});
   const batchId = raw.batchId || raw.id || raw.batch?.id;
   if (!batchId) throw new AppError(502, 'ffcpe-error', 'Firefly Creative Production did not return a batch ID.');
@@ -108,6 +132,6 @@ async function executions(params, batchId, fetchImpl = fetch) {
 }
 
 module.exports = {
-  execute, batchStatus, executions, fillTemplate, DEFAULT_TEMPLATE,
+  execute, batchStatus, executions, fillTemplate, buildBody,
   _reset: () => { cachedToken = null; },
 };

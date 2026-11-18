@@ -882,6 +882,39 @@ function renderProgress(job) {
   return h('div', { class: 'ccs-progress-wrap' }, bar, h('p', { class: 'ccs-detail', text: meta }));
 }
 
+/**
+ * A failed run where one placement still succeeded: show the image that was kept next to
+ * the channel that failed. (Accepting needs both, so the author runs again.)
+ */
+function renderChannels(job) {
+  const ch = job.channels;
+  if (job.status !== 'render-failed' || !ch || !(ch.desktop?.ok || ch.mobile?.ok)) return null;
+  const figure = (p, label) => {
+    const o = job.outputs?.[p];
+    const ok = ch[p]?.ok && o;
+    return h(
+      'figure',
+      { class: `ccs-preview is-${p}${ok ? '' : ' is-failed'}` },
+      ok && o.previewUrl
+        ? h('img', {
+          src: o.previewUrl, alt: `${label} output (kept)`, width: o.width || undefined, height: o.height || undefined,
+        })
+        : h('div', { class: 'ccs-preview-missing' }, icon('image')),
+      h(
+        'figcaption',
+        { class: 'ccs-detail' },
+        h('sp-status-light', { variant: ok ? 'positive' : 'negative', size: 's', text: ok ? `${label} ready` : `${label} failed` }),
+      ),
+    );
+  };
+  return h(
+    'div',
+    { class: 'ccs-channels' },
+    h('div', { class: 'ccs-previews' }, figure('desktop', 'Desktop'), figure('mobile', 'Mobile')),
+    h('p', { class: 'ccs-detail', text: 'Both images are needed to continue. Run again to produce a new pair; the kept image stays with this job.' }),
+  );
+}
+
 const FALLBACK_STEPS = ['Remove background', 'Place in the desktop layout', 'Place in the mobile layout'];
 
 function renderWorkflowDetails(wf) {
@@ -992,6 +1025,7 @@ function renderPrepareStep() {
       ),
       renderProgress(job),
       job.message ? h('p', { class: 'ccs-body', text: job.message }) : null,
+      renderChannels(job),
       h('p', { class: 'ccs-detail', text: `Job ${job.id}` }),
     ));
   }

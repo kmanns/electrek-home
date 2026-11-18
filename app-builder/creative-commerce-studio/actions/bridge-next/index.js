@@ -3,7 +3,7 @@ const { webAction } = require('../../lib/http');
 const { authenticateBridge } = require('../../lib/bridge-auth');
 const jobs = require('../../lib/jobs');
 
-exports.main = webAction(async (params) => {
+exports.main = webAction(async (params, body) => {
   authenticateBridge(params);
-  return jobs.bridgeNext(params);
+  return jobs.bridgeNext(params, body);
 });

@@ -26,7 +26,10 @@ const http = require('http');
 const crypto = require('crypto');
 const { execFile } = require('child_process');
 const { McpSession } = require('../lib/mcp');
-const { findValue } = require('../lib/engines');
+const { findValue, mcpInputs } = require('../lib/engines');
+
+// Announced to the backend: this bridge sends every run input (product photo + scene images).
+const CAPABILITIES = ['multi-input'];
 
 const homeDir = () => process.env.CCS_BRIDGE_HOME || path.join(os.homedir(), '.ccs-bridge');
 const tokenFile = () => path.join(homeDir(), 'firefly.json');
@@ -253,19 +256,17 @@ async function withMcp(cfg, fn) {
 
 async function handleSubmit(cfg, task) {
   try {
+    const inputs = Array.isArray(task.inputs) && task.inputs.length ? task.inputs : [{
+      nodeId: task.productNodeId, url: task.sourceUrl, name: task.sourceName, mimeType: task.mimeType,
+    }];
     const result = await withMcp(cfg, (s) => s.callTool('run_workflow_submit', {
       workflowId: task.workflowId,
-      inputs: [{
-        node_id: task.productNodeId,
-        content: [{
-          type: 'image', url: task.sourceUrl, name: task.sourceName, mimeType: task.mimeType,
-        }],
-      }],
+      inputs: mcpInputs(inputs),
     }));
     const batchId = findValue(result, ['batchId', 'batch_id', 'instanceId']);
     if (!batchId) throw new Error(`Firefly did not accept the run: ${String(findValue(result, ['message', 'error', 'text']) || 'no batch ID').slice(0, 200)}`);
     await backend(cfg, 'bridge-report', { jobId: task.jobId, batchId: String(batchId) });
-    console.log(`[${new Date().toLocaleTimeString()}] started ${task.jobId} -> ${batchId}`);
+    console.log(`[${new Date().toLocaleTimeString()}] started ${task.jobId} -> ${batchId}${inputs.length > 1 ? ` (${inputs.length} inputs)` : ''}`);
   } catch (e) {
     if (e.fatal) throw e;
     await backend(cfg, 'bridge-report', { jobId: task.jobId, failure: e.message, uncertain: !!e.uncertain }).catch(() => {});
@@ -296,7 +297,7 @@ async function run() {
   while (!stopping) {
     try {
       // eslint-disable-next-line no-await-in-loop
-      const { tasks = [] } = await backend(cfg, 'bridge-next');
+      const { tasks = [] } = await backend(cfg, 'bridge-next', { capabilities: CAPABILITIES });
       // eslint-disable-next-line no-restricted-syntax
       for (const task of tasks) {
         // eslint-disable-next-line no-await-in-loop
@@ -317,7 +318,7 @@ async function run() {
 }
 
 module.exports = {
-  handleSubmit, handlePoll, loadDotEnv, config,
+  handleSubmit, handlePoll, loadDotEnv, config, CAPABILITIES,
 };
 
 if (require.main === module) {
