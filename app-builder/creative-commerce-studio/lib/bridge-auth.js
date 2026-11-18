@@ -21,4 +21,20 @@ function authenticateBridge(params) {
   }
 }
 
-module.exports = { authenticateBridge };
+/**
+ * Authenticates the site admin's upload command (npm run workflows:upload).
+ * Accepts ADMIN_TOKEN when it is set (any FFCPE_MODE), otherwise BRIDGE_TOKEN in bridge mode.
+ */
+function authenticateAdmin(params) {
+  const header = params.__ow_headers?.authorization || '';
+  const match = header.match(/^Bearer\s+(\S+)$/i);
+  const tokens = [params.ADMIN_TOKEN, (params.FFCPE_MODE || 'mcp') === 'bridge' ? params.BRIDGE_TOKEN : null]
+    .filter((t) => typeof t === 'string' && t.length >= 32);
+  if (!tokens.length) {
+    throw new AppError(500, 'misconfigured', 'Set ADMIN_TOKEN (32+ random characters) in the backend .env and redeploy; in bridge mode BRIDGE_TOKEN also works.');
+  }
+  const ok = match && tokens.some((t) => crypto.timingSafeEqual(digest(match[1]), digest(t)));
+  if (!ok) throw new AppError(401, 'admin-unauthorized', 'Upload token rejected.');
+}
+
+module.exports = { authenticateBridge, authenticateAdmin };

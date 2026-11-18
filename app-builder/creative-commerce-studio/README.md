@@ -148,7 +148,12 @@ Authors only pick the product, the photo and the look. The scene images stay hid
 - **Links:** every run gets fresh 1-hour links to them.
 - **Each run is one product with one look.** Don't put several looks' images into one entry: the workflow could pair them up in unintended combinations.
 
-**Upload the list and the images** from the backend folder on your computer. `aio app use` must have been run there, because the command reads that workspace's `AIO_runtime_*` values from `.env`.
+**Upload the list and the images** from the backend folder on your computer, the same folder you deploy from. The command uploads **through the deployed backend**: the backend hands out 10-minute upload links, so your computer needs no storage credentials. It needs `CCS_BACKEND_URL` plus a token in that folder's `.env`:
+
+- **Bridge mode:** the existing `BRIDGE_TOKEN` works.
+- **Otherwise:** set `ADMIN_TOKEN`, 32+ random characters (for example from `openssl rand -hex 32`), and redeploy.
+
+Without those settings, or with `--direct`, it writes straight to App Builder storage using the `AIO_runtime_*` values that `aio app use` writes.
 
 1. Put each image at its `file` path under `looks/`, for example `looks/workshop/workshop-desktop-mask.png`. Give every file a unique name, such as the look's name followed by its part, so they can't be mixed up in Firefly either. Images in that folder aren't committed.
 2. `npm run workflows:check` validates the list and every image and uploads nothing. It checks that:
@@ -275,6 +280,8 @@ For local development, use `ref=local`. Workspace then loads the plugin from `ht
 | "Adobe's Firefly sign-in did not accept this app's registration" | The MCP sign-in server refused dynamic registration for this redirect URI. Use `api` mode, or check `FIREFLY_REDIRECT_URI` |
 | Connect Firefly window closes but stays disconnected | Check `aio app logs` for `firefly-auth-callback`; the Adobe account may lack access to the workflow |
 | "… is missing scene images in backend storage" | Put the images under `looks/` at the paths in `workflows.json` and run `npm run workflows:upload` |
+| `workflows:upload`: "unauthorized access to the storage service" | Direct upload was refused. Set `CCS_BACKEND_URL` and `BRIDGE_TOKEN` (bridge mode) or `ADMIN_TOKEN` in `.env`, deploy, and upload again, which then goes through the backend |
+| `workflows:upload`: "The backend refused the upload … HTTP 404" | The backend predates the upload action: run `aio app deploy --force-deploy` first |
 | "The local Firefly bridge is out of date" | Update the backend folder and restart `npm run bridge`; older bridges only send the product photo |
 | `ffcpe-error … rejected the request` | Wrong workflow ID or node ID, the workflow isn't published, or (api mode) the request body doesn't match |
 | "desktop/mobile composites were not found (output nodes: …)" | The listed node IDs are what came back; set `FFCPE_DESKTOP_NODE_ID` / `FFCPE_MOBILE_NODE_ID` to the composite nodes |

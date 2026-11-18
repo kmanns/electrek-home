@@ -5,11 +5,16 @@
  *   npm run workflows:check    # validate workflows.json and every scene image, upload nothing
  *   npm run workflows:upload   # validate, then upload to the backend's private storage
  *
- * Reads workflows.json and the images it references (looks/...) from this backend folder,
- * and the App Builder workspace credentials (AIO_runtime_namespace, AIO_runtime_auth)
- * from .env, which `aio app use` writes. Uploads go to App Builder Files under private
- * paths (looks/..., config/workflows.json); nothing becomes public. Changes apply to the
- * next run without a redeploy.
+ * Reads workflows.json and the images it references (looks/...) from this backend folder.
+ * Uploads go to App Builder Files under private paths (looks/..., config/workflows.json);
+ * nothing becomes public. Changes apply to the next run without a redeploy.
+ *
+ * How it uploads (from .env):
+ *   - Through the backend (preferred): CCS_BACKEND_URL plus ADMIN_TOKEN, or BRIDGE_TOKEN in
+ *     bridge mode. The deployed backend hands out 10-minute upload links, so this computer
+ *     needs no storage credentials.
+ *   - Directly: AIO_runtime_namespace / AIO_runtime_auth (written by `aio app use`), used
+ *     when no backend URL and token are set, or with --direct.
  */
 /* eslint-disable no-console -- command-line tool: console output is its interface */
 const fs = require('fs');
@@ -69,21 +74,68 @@ function plan(root = ROOT, env = {}, listFile = path.join(root, 'workflows.json'
   };
 }
 
-async function upload(p, env) {
+/** All uploads in order: scene images first, the list last (it never points at missing images). */
+function uploads(p) {
+  return [
+    ...p.files.map(({ file, bytes }) => ({ file, bytes, label: file })),
+    { file: workflows.CONFIG_PATH, bytes: Buffer.from(p.text), label: `workflows.json (${p.entries.length} workflow${p.entries.length === 1 ? '' : 's'})` },
+  ];
+}
+
+const contentType = (file) => {
+  if (/\.png$/i.test(file)) return 'image/png';
+  if (/\.json$/i.test(file)) return 'application/json';
+  return 'image/jpeg';
+};
+
+/** Uploads through the deployed backend: it returns short-lived write links, we PUT each file. */
+async function uploadViaBackend(p, env, fetchImpl = fetch) {
+  const backend = String(env.CCS_BACKEND_URL || '').replace(/\/$/, '');
+  const token = env.ADMIN_TOKEN || env.BRIDGE_TOKEN;
+  const list = uploads(p);
+  const res = await fetchImpl(`${backend}/workflows-upload-urls`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ files: list.map((u) => u.file) }),
+  });
+  const json = await res.json().catch(() => ({}));
+  if (!res.ok || !json.links) {
+    const why = json.error?.message || `HTTP ${res.status}`;
+    const hint = res.status === 404 ? ' The backend may not have this action yet: run "aio app deploy --force-deploy" first.' : '';
+    throw new Error(`The backend refused the upload: ${why}.${hint}`);
+  }
+  // eslint-disable-next-line no-restricted-syntax
+  for (const u of list) {
+    // eslint-disable-next-line no-await-in-loop
+    const put = await fetchImpl(json.links[u.file], {
+      method: 'PUT',
+      headers: { 'x-ms-blob-type': 'BlockBlob', 'Content-Type': contentType(u.file) },
+      body: u.bytes,
+    });
+    if (!put.ok) throw new Error(`Uploading ${u.file} failed (HTTP ${put.status}). Nothing after it was uploaded; run the command again.`);
+    console.log(`  uploaded ${u.label} (${Math.round(u.bytes.length / 1024)} KB)`);
+  }
+}
+
+async function uploadDirect(p, env) {
   if (!env.AIO_runtime_namespace || !env.AIO_runtime_auth) {
     throw new Error('AIO_runtime_namespace / AIO_runtime_auth are missing in .env. Run "aio app use" in this folder first.');
   }
   // eslint-disable-next-line global-require
   const files = await require('@adobe/aio-lib-files').init({ ow: { namespace: env.AIO_runtime_namespace, auth: env.AIO_runtime_auth } });
   // eslint-disable-next-line no-restricted-syntax
-  for (const { file, bytes } of p.files) {
+  for (const u of uploads(p)) {
     // eslint-disable-next-line no-await-in-loop
-    await files.write(file, bytes);
-    console.log(`  uploaded ${file} (${Math.round(bytes.length / 1024)} KB)`);
+    await files.write(u.file, u.bytes);
+    console.log(`  uploaded ${u.label} (${Math.round(u.bytes.length / 1024)} KB)`);
   }
-  // The list goes last, so it never points at images that aren't uploaded yet.
-  await files.write(workflows.CONFIG_PATH, Buffer.from(p.text));
-  console.log(`  uploaded workflows.json (${p.entries.length} workflow${p.entries.length === 1 ? '' : 's'})`);
+}
+
+/** Through the backend when its URL and a token are in .env (unless --direct), else directly. */
+function route(env, argv = process.argv) {
+  const token = env.ADMIN_TOKEN || env.BRIDGE_TOKEN;
+  if (!argv.includes('--direct') && /^https:\/\//.test(env.CCS_BACKEND_URL || '') && token && token.length >= 32) return 'backend';
+  return 'direct';
 }
 
 async function main() {
@@ -102,11 +154,17 @@ async function main() {
     console.log(`Check passed: ${p.entries.length} workflows, ${p.files.length} scene images. Nothing uploaded.`);
     return;
   }
-  await upload(p, env);
+  if (route(env) === 'backend') {
+    console.log('Uploading through the backend…');
+    await uploadViaBackend(p, env);
+  } else {
+    console.log('Uploading directly to App Builder storage…');
+    await uploadDirect(p, env);
+  }
   console.log('Done. The next run uses this list; no redeploy needed. Reload the plugin to see the choices.');
 }
 
-module.exports = { plan };
+module.exports = { plan, route, uploadViaBackend };
 
 if (require.main === module) {
   main().catch((e) => { console.error(e.message); process.exit(1); });
