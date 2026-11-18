@@ -4,7 +4,7 @@
  * `npm run workflows:upload`; each run gets fresh short-lived read links.
  *
  * Checks (shared with the upload command, and repeated before every paid run):
- *   - the file exists and really is a PNG or JPEG
+ *   - the file exists and really is a PNG or JPEG, and its extension matches (.png / .jpg)
  *   - masks are PNG
  *   - an explicit width/height on the input matches the file
  *   - each channel's mask has the same pixel size as that channel's background
@@ -23,7 +23,12 @@ function check(items, label = '') {
       problems.push(`${it.file}${where} is not a readable PNG or JPEG image.`);
       return;
     }
-    if (it.role.endsWith('-mask') && it.kind.type !== 'image/png') {
+    const named = /\.png$/i.test(it.file) ? 'image/png' : 'image/jpeg';
+    if (named !== it.kind.type) {
+      // Renaming .png to .jpg (or back) doesn't convert the image; Firefly may refuse the mismatch.
+      const actual = it.kind.type === 'image/png' ? 'PNG' : 'JPEG';
+      problems.push(`${it.file}${where} is actually a ${actual} image. Give it a .${actual === 'PNG' ? 'png' : 'jpg'} name, or convert it (for example: sips -s format ${actual === 'PNG' ? 'jpeg' : 'png'} in --out out).`);
+    } else if (it.role.endsWith('-mask') && it.kind.type !== 'image/png') {
       problems.push(`${it.file}${where} is a placement mask and must be a PNG.`);
     }
     ['width', 'height'].forEach((d) => {

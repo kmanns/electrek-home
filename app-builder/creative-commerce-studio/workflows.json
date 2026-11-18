@@ -29,22 +29,22 @@
     "inputs": [
       {
         "nodeId": "node_1794859332_632333d2",
-        "file": "looks/premium-studio/desktop-background.png",
+        "file": "looks/premium-studio/premium-studio-desktop-background.jpg",
         "role": "desktop-background"
       },
       {
         "nodeId": "node_1794859332_820db7fd",
-        "file": "looks/premium-studio/desktop-mask.png",
+        "file": "looks/premium-studio/premium-studio-desktop-mask.png",
         "role": "desktop-mask"
       },
       {
         "nodeId": "node_1794859332_c43928ef",
-        "file": "looks/premium-studio/mobile-background.png",
+        "file": "looks/premium-studio/premium-studio-mobile-background.jpg",
         "role": "mobile-background"
       },
       {
         "nodeId": "node_1794859332_b235a924",
-        "file": "looks/premium-studio/mobile-mask.png",
+        "file": "looks/premium-studio/premium-studio-mobile-mask.png",
         "role": "mobile-mask"
       }
     ]
@@ -65,22 +65,22 @@
     "inputs": [
       {
         "nodeId": "node_1794859332_632333d2",
-        "file": "looks/workshop/desktop-background.jpg",
+        "file": "looks/workshop/workshop-desktop-background.jpg",
         "role": "desktop-background"
       },
       {
         "nodeId": "node_1794859332_820db7fd",
-        "file": "looks/workshop/desktop-mask.png",
+        "file": "looks/workshop/workshop-desktop-mask.png",
         "role": "desktop-mask"
       },
       {
         "nodeId": "node_1794859332_c43928ef",
-        "file": "looks/workshop/mobile-background.jpg",
+        "file": "looks/workshop/workshop-mobile-background.jpg",
         "role": "mobile-background"
       },
       {
         "nodeId": "node_1794859332_b235a924",
-        "file": "looks/workshop/mobile-mask.png",
+        "file": "looks/workshop/workshop-mobile-mask.png",
         "role": "mobile-mask"
       }
     ]
@@ -101,22 +101,22 @@
     "inputs": [
       {
         "nodeId": "node_1794859332_632333d2",
-        "file": "looks/holiday-gifting/desktop-background.jpg",
+        "file": "looks/holiday-gifting/holiday-gifting-desktop-background.jpg",
         "role": "desktop-background"
       },
       {
         "nodeId": "node_1794859332_820db7fd",
-        "file": "looks/holiday-gifting/desktop-mask.png",
+        "file": "looks/holiday-gifting/holiday-gifting-desktop-mask.png",
         "role": "desktop-mask"
       },
       {
         "nodeId": "node_1794859332_c43928ef",
-        "file": "looks/holiday-gifting/mobile-background.jpg",
+        "file": "looks/holiday-gifting/holiday-gifting-mobile-background.jpg",
         "role": "mobile-background"
       },
       {
         "nodeId": "node_1794859332_b235a924",
-        "file": "looks/holiday-gifting/mobile-mask.png",
+        "file": "looks/holiday-gifting/holiday-gifting-mobile-mask.png",
         "role": "mobile-mask"
       }
     ]
