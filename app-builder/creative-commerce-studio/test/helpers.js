@@ -14,7 +14,14 @@ const stateMock = {
 
 const filesMock = {
   write: async (p, b) => { filesData.set(p, Buffer.from(b)); },
-  read: async (p) => filesData.get(p),
+  read: async (p) => {
+    if (!filesData.has(p)) throw Object.assign(new Error(`file ${p} does not exist`), { code: 'ERROR_FILE_NOT_EXISTS' });
+    return filesData.get(p);
+  },
+  // Like aio-lib-files: a file path lists that file; a path ending in "/" lists the folder.
+  list: async (p) => [...filesData.keys()]
+    .filter((k) => (p.endsWith('/') ? k.startsWith(p) : k === p))
+    .map((name) => ({ name })),
   generatePresignURL: async (p) => `https://files.example/${p}?sig=abc`,
   getProperties: async (p) => ({ url: `https://pub.blob.core.windows.net/container-public/${p}`, isPublic: p.startsWith('public/') }),
 };

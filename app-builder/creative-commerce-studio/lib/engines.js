@@ -44,51 +44,85 @@ function findValue(node, keys, depth = 0) {
   return undefined;
 }
 
-/** Collects every { nodeId, url } output entry anywhere in a status payload. */
-function collectNodeOutputs(node, found = [], depth = 0) {
+const ownNodeId = (node) => node.nodeId || node.node_id || node.actionId;
+
+/**
+ * Collects every { nodeId, url } output entry anywhere in a status payload. The node ID
+ * may sit on the same object as the link ({ nodeId, url }) or on an enclosing output
+ * ({ node_id, content: { presignedUrl } } or content: [...]); the nearest one wins.
+ */
+function collectNodeOutputs(node, found = [], depth = 0, inherited = null) {
   if (!node || typeof node !== 'object' || depth > 10) return found;
   if (Array.isArray(node)) {
-    node.forEach((n) => collectNodeOutputs(n, found, depth + 1));
+    node.forEach((n) => collectNodeOutputs(n, found, depth + 1, inherited));
     return found;
   }
   const url = node.url || node.href || node.presignedUrl || node.downloadUrl;
-  const nodeId = node.nodeId || node.node_id || node.actionId;
+  const nodeId = ownNodeId(node) || inherited;
   if (typeof url === 'string' && /^https:\/\//.test(url) && nodeId) {
     found.push({
       nodeId: String(nodeId), url, name: node.name || '', mimeType: node.mimeType || node.contentType || '',
     });
   }
-  Object.values(node).forEach((v) => { if (v && typeof v === 'object') collectNodeOutputs(v, found, depth + 1); });
+  Object.values(node).forEach((v) => { if (v && typeof v === 'object') collectNodeOutputs(v, found, depth + 1, nodeId); });
   return found;
 }
 
-function collectErrors(node, found = [], depth = 0) {
+/** Error messages anywhere in a payload, each with the node it belongs to (if any). */
+function collectNodeErrors(node, found = [], depth = 0, inherited = null) {
   if (!node || typeof node !== 'object' || depth > 8) return found;
-  if (Array.isArray(node)) { node.forEach((n) => collectErrors(n, found, depth + 1)); return found; }
+  if (Array.isArray(node)) { node.forEach((n) => collectNodeErrors(n, found, depth + 1, inherited)); return found; }
+  const nodeId = ownNodeId(node) || inherited;
   const failed = /fail|error/i.test(String(node.status || node.state || ''));
   const msg = node.error?.message || (typeof node.error === 'string' ? node.error : null) || (failed ? node.message : null);
-  if (typeof msg === 'string' && msg) found.push(msg);
-  Object.values(node).forEach((v) => { if (v && typeof v === 'object') collectErrors(v, found, depth + 1); });
+  if (typeof msg === 'string' && msg) found.push({ nodeId: nodeId ? String(nodeId) : null, message: msg });
+  Object.values(node).forEach((v) => { if (v && typeof v === 'object') collectNodeErrors(v, found, depth + 1, nodeId); });
   return found;
 }
 
-function failedCount(body) {
-  const v = findValue(body, ['failedExecutions', 'failed', 'failedCount']);
-  return typeof v === 'number' ? v : 0;
+function collectErrors(node) {
+  return collectNodeErrors(node).map((e) => e.message);
 }
 
-/** Maps a terminal status payload to placements by node ID, or a clear failure. */
-function placementsFrom(params, body) {
+/**
+ * Maps a terminal status payload to placements by node ID. Both found: rendered.
+ * Otherwise render-failed, keeping whichever channel did succeed (partial placements)
+ * with a per-channel reason.
+ */
+function placementsFrom(params, body, { failed = false } = {}) {
   const ids = nodeIds(params);
   const outputs = collectNodeOutputs(body);
   const pick = (id) => outputs.find((o) => o.nodeId === id);
+  const placements = {};
   const desktop = pick(ids.desktop);
   const mobile = pick(ids.mobile);
-  if (!desktop || !mobile) {
+  if (desktop) placements.desktop = desktop;
+  if (mobile) placements.mobile = mobile;
+  if (desktop && mobile) return { state: 'rendered', placements };
+
+  const errors = collectNodeErrors(body);
+  const general = errors.find((e) => !e.nodeId || ![ids.desktop, ids.mobile].includes(e.nodeId));
+  const channelErrors = {};
+  ['desktop', 'mobile'].filter((c) => !placements[c]).forEach((c) => {
+    const own = errors.find((e) => e.nodeId === ids[c]);
+    channelErrors[c] = (own || general)?.message || null;
+  });
+
+  let message;
+  if (!desktop && !mobile && !errors.length && !failed) {
     const seen = [...new Set(outputs.map((o) => o.nodeId))].join(', ') || 'none';
-    return { state: 'render-failed', message: `The workflow finished but the desktop/mobile composites were not found (output nodes: ${seen}). Check FFCPE_DESKTOP_NODE_ID / FFCPE_MOBILE_NODE_ID.` };
+    message = `The workflow finished but the desktop/mobile composites were not found (output nodes: ${seen}). Check the workflow's desktop and mobile node IDs (FFCPE_DESKTOP_NODE_ID / FFCPE_MOBILE_NODE_ID or workflows.json).`;
+  } else if (!desktop && !mobile) {
+    message = errors[0]?.message || 'The Firefly workflow failed.';
+  } else {
+    const [lost] = Object.keys(channelErrors);
+    const kept = lost === 'desktop' ? 'mobile' : 'desktop';
+    const why = channelErrors[lost];
+    message = `${`The ${lost} composite failed${why ? `: ${why}` : ''}`.replace(/[.!?]?$/, '.')} The ${kept} image was kept.`;
   }
-  return { state: 'rendered', placements: { desktop, mobile } };
+  return {
+    state: 'render-failed', message, placements, channelErrors,
+  };
 }
 
 function normalizeState(raw) {
@@ -162,27 +196,35 @@ function interpretMcpStatus(params, body) {
   const state = normalizeState(findValue(body, ['status', 'state', 'runtimeStatus']));
   if (state === 'queued' || state === 'processing') return { state, progress: extractProgress(body) };
   if (state === 'cancelled') return { state: 'cancelled', message: 'The Firefly run was cancelled.' };
-  if (state === 'failed') return { state: 'render-failed', message: collectErrors(body)[0] || 'The Firefly workflow failed.' };
-  const mapped = placementsFrom(params, body);
-  if (mapped.state === 'render-failed' && failedCount(body) > 0) {
-    return { state: 'render-failed', message: collectErrors(body)[0] || mapped.message };
-  }
-  return mapped;
+  return placementsFrom(params, body, { failed: state === 'failed' });
+}
+
+/** Run inputs: the job's list, or just the product photo (older callers). */
+function runInputs(params, input) {
+  if (Array.isArray(input.inputs) && input.inputs.length) return input.inputs;
+  return [{
+    nodeId: nodeIds(params).product, url: input.sourceUrl, name: input.sourceName, mimeType: input.mimeType,
+  }];
+}
+
+/** The MCP submit tool's input shape: one entry per node, { type: 'image', url, … } content. */
+function mcpInputs(inputs) {
+  return inputs.map((i) => ({
+    node_id: i.nodeId,
+    content: [{
+      type: 'image', url: i.url, name: i.name, mimeType: i.mimeType,
+    }],
+  }));
 }
 
 /* ---------- MCP engine ---------- */
 
 const mcpEngine = {
   async submit(params, user, input, fetchImpl) {
-    const ids = nodeIds(params);
+    const inputs = mcpInputs(runInputs(params, input));
     const result = await withSession(params, user, (s) => s.callTool(params.FFCPE_TOOL_SUBMIT || 'run_workflow_submit', {
       workflowId: params.FFCPE_WORKFLOW_ID,
-      inputs: [{
-        node_id: ids.product,
-        content: [{
-          type: 'image', url: input.sourceUrl, name: input.sourceName, mimeType: input.mimeType,
-        }],
-      }],
+      inputs,
     }), fetchImpl);
     const batchId = findValue(result, ['batchId', 'batch_id', 'instanceId']);
     if (!batchId) {
@@ -233,6 +275,7 @@ const apiEngine = {
       productName: input.productName,
       sourceName: input.sourceName,
       productNodeId: ids.product,
+      inputs: runInputs(params, input),
     }, fetchImpl, { idempotencyKey: input.jobId });
   },
 
@@ -240,10 +283,9 @@ const apiEngine = {
     const batch = await ffcpe.batchStatus(params, batchId, fetchImpl);
     const s = normalizeState(batch?.status || batch?.batch?.status);
     if (s === 'queued' || s === 'processing') return { state: s, progress: extractProgress(batch) };
-    const execs = await ffcpe.executions(params, batchId, fetchImpl);
     if (s === 'cancelled') return { state: 'cancelled', message: 'The Firefly batch was cancelled.' };
-    if (s === 'failed') return { state: 'render-failed', message: collectErrors(execs)[0] || 'The Firefly workflow failed.' };
-    return placementsFrom(params, execs);
+    const execs = await ffcpe.executions(params, batchId, fetchImpl);
+    return placementsFrom(params, execs, { failed: s === 'failed' });
   },
 };
 
@@ -267,7 +309,9 @@ module.exports = {
   nodeIds,
   findValue,
   collectNodeOutputs,
+  collectErrors,
   placementsFrom,
+  mcpInputs,
   normalizeState,
   interpretMcpStatus,
   extractProgress,

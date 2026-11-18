@@ -10,7 +10,9 @@
   "scripts": {
     "test": "jest --ci",
     "bridge": "node bridge/ccs-bridge.js run",
-    "bridge:login": "node bridge/ccs-bridge.js login"
+    "bridge:login": "node bridge/ccs-bridge.js login",
+    "workflows:check": "node scripts/workflows-upload.js --check",
+    "workflows:upload": "node scripts/workflows-upload.js"
   },
   "dependencies": {
     "@adobe/aio-lib-files": "^4.1.4",

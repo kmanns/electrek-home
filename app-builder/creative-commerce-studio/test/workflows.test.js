@@ -64,28 +64,29 @@ const body = (extra = {}) => {
 beforeEach(() => { h.reset(); ffcpe._reset(); });
 
 describe('workflow configuration', () => {
-  test('parses the curated list; the first entry is the default', () => {
-    const all = workflows.list(base);
+  test('parses the curated list; the first entry is the default', async () => {
+    const all = await workflows.list(base);
     expect(all.map((w) => w.key)).toEqual(['spotlight', 'lifestyle']);
-    expect(workflows.resolve(base, null).key).toBe('spotlight');
-    expect(workflows.resolve(base, 'lifestyle').workflowId).toBe('wf-life');
+    expect((await workflows.resolve(base, null)).key).toBe('spotlight');
+    expect((await workflows.resolve(base, 'lifestyle')).workflowId).toBe('wf-life');
     expect(all[1].label).toBe('Lifestyle scene');
     expect(all[1].steps).toEqual([]);
+    expect(all[1].inputs).toEqual([]);
   });
 
-  test('falls back to the single FFCPE_WORKFLOW_ID setup', () => {
-    const single = workflows.list({ ...h.PARAMS, FFCPE_WORKFLOW_LABEL: 'Our spotlight' });
+  test('falls back to the single FFCPE_WORKFLOW_ID setup', async () => {
+    const single = await workflows.list({ ...h.PARAMS, FFCPE_WORKFLOW_LABEL: 'Our spotlight' });
     expect(single).toEqual([expect.objectContaining({
       key: 'default', label: 'Our spotlight', workflowId: 'wf-1', productNodeId: 'node_product', steps: workflows.DEFAULT_STEPS,
     })]);
   });
 
-  test('rejects invalid JSON, duplicate keys and missing node IDs with readable errors', () => {
-    expect(() => workflows.list({ FFCPE_WORKFLOWS: '[{bad' })).toThrow(/not valid JSON/);
-    expect(() => workflows.list({ FFCPE_WORKFLOWS: JSON.stringify([WORKFLOWS[0], WORKFLOWS[0]]) })).toThrow(/duplicate key "spotlight"/);
-    expect(() => workflows.list({ FFCPE_WORKFLOWS: JSON.stringify([{ ...WORKFLOWS[1], mobileNodeId: '' }]) })).toThrow(/"lifestyle": "mobileNodeId" is missing/);
-    expect(() => workflows.list({ FFCPE_WORKFLOWS: JSON.stringify([{ ...WORKFLOWS[1], key: 'Bad Key' }]) })).toThrow(/"key" must be/);
-    expect(() => workflows.resolve(base, 'nope')).toThrow(/not available on this site/);
+  test('rejects invalid JSON, duplicate keys and missing node IDs with readable errors', async () => {
+    await expect(workflows.list({ FFCPE_WORKFLOWS: '[{bad' })).rejects.toThrow(/not valid JSON/);
+    await expect(workflows.list({ FFCPE_WORKFLOWS: JSON.stringify([WORKFLOWS[0], WORKFLOWS[0]]) })).rejects.toThrow(/duplicate key "spotlight"/);
+    await expect(workflows.list({ FFCPE_WORKFLOWS: JSON.stringify([{ ...WORKFLOWS[1], mobileNodeId: '' }]) })).rejects.toThrow(/"lifestyle": "mobileNodeId" is missing/);
+    await expect(workflows.list({ FFCPE_WORKFLOWS: JSON.stringify([{ ...WORKFLOWS[1], key: 'Bad Key' }]) })).rejects.toThrow(/"key" must be/);
+    await expect(workflows.resolve(base, 'nope')).rejects.toThrow(/not available on this site/);
   });
 
   test('the workflows-list action shows labels, descriptions and steps but never node IDs', async () => {
@@ -173,6 +174,8 @@ describe('jobs run the chosen workflow', () => {
     await connectBox(API, f);
     await jobs.submit(API, alice, body({ workflowKey: 'lifestyle' }), f);
     const exec = f.calls.find((c) => c.url.endsWith('/batch/execute'));
-    expect(JSON.parse(exec.init.body).workflow).toMatchObject({ workflowId: 'wf-life', inputs: [[{ node_id: 'n-life-in' }]] });
+    const sent = JSON.parse(exec.init.body);
+    expect(sent.workflow).toEqual({ workflowId: 'wf-life' });
+    expect(sent.inputs).toMatchObject([{ node_id: 'n-life-in' }]);
   });
 });

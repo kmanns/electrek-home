@@ -163,6 +163,33 @@ describe('local bridge script', () => {
     expect(reports).toEqual([{ jobId: 'job-12345678', batchId: 'batch-9' }]);
   });
 
+  test('sends every run input (product photo + scene images) when the task lists them', async () => {
+    const reports = [];
+    global.fetch = mcpAndBackend(reports);
+    const inputs = [
+      {
+        nodeId: 'n-product', url: 'https://files.example/s.png', name: 's.png', mimeType: 'image/png',
+      },
+      {
+        nodeId: 'n-desk-bg', url: 'https://files.example/looks/w/db.jpg', name: 'db.jpg', mimeType: 'image/jpeg',
+      },
+      {
+        nodeId: 'n-desk-mask', url: 'https://files.example/looks/w/dm.png', name: 'dm.png', mimeType: 'image/png',
+      },
+    ];
+    await bridgeScript.handleSubmit(cfg, {
+      type: 'submit', jobId: 'job-12345678', workflowId: 'wf-looks', productNodeId: 'n-product', sourceUrl: 'https://files.example/s.png', sourceName: 's.png', mimeType: 'image/png', inputs,
+    });
+    const call = global.fetch.calls.find((c) => c.init.body?.includes('run_workflow_submit'));
+    const args = JSON.parse(call.init.body).params.arguments;
+    expect(args.workflowId).toBe('wf-looks');
+    expect(args.inputs.map((i) => i.node_id)).toEqual(['n-product', 'n-desk-bg', 'n-desk-mask']);
+    expect(args.inputs[2].content).toEqual([{
+      type: 'image', url: 'https://files.example/looks/w/dm.png', name: 'dm.png', mimeType: 'image/png',
+    }]);
+    expect(bridgeScript.CAPABILITIES).toContain('multi-input');
+  });
+
   test('reports a clear failure when Firefly does not accept the run', async () => {
     const reports = [];
     global.fetch = mcpAndBackend(reports, { submitResult: { status: 'rejected', message: 'workflow not published' } });

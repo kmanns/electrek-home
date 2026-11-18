@@ -10,6 +10,9 @@
  * - An uncertain submission (network failure after sending) is never retried
  *   automatically; it becomes submit-uncertain.
  * - Rendering failure and delivery failure are separate states.
+ * - Each placement (desktop, mobile) succeeds or fails on its own: when only one
+ *   composite comes back, it is kept (previewable) and the job is render-failed with
+ *   a per-channel reason. Accepting still needs both.
  */
 const crypto = require('crypto');
 const { AppError } = require('./http');
@@ -21,6 +24,7 @@ const delivery = require('./delivery');
 const fireflyAuth = require('./firefly-auth');
 const { randomId } = require('./crypto');
 const { sniff } = require('./image');
+const scenes = require('./scenes');
 
 const TERMINAL = ['ready-for-review', 'accepted', 'render-failed', 'delivery-failed', 'cancelled', 'submit-uncertain'];
 const ACTIVE = ['queued', 'processing'];
@@ -55,7 +59,7 @@ async function addToIndex(user, jobId) {
 /** Public view: no Files paths, no source URLs, short-lived previews only. */
 async function view(job) {
   const out = {};
-  const files = ['ready-for-review', 'delivery-failed'].includes(job.status) ? await store.getFiles() : null;
+  const files = ['ready-for-review', 'delivery-failed', 'render-failed'].includes(job.status) ? await store.getFiles() : null;
   await Promise.all(['desktop', 'mobile'].map(async (p) => {
     const o = job.outputs?.[p];
     if (!o) return;
@@ -85,6 +89,7 @@ async function view(job) {
     createdAt: job.createdAt,
     updatedAt: job.updatedAt,
     outputs: Object.keys(out).length ? out : null,
+    channels: job.channels || null,
     retryAfterMs: ACTIVE.includes(job.status) ? 5000 : undefined,
   };
 }
@@ -109,7 +114,7 @@ async function submit(params, user, body, fetchImpl = fetch) {
     throw new AppError(400, 'bad-request', 'A source file and version are required.');
   }
   const connector = sources.get(params, String(source.provider));
-  const wf = workflows.resolve(params, workflowKey ? String(workflowKey) : null);
+  const wf = await workflows.resolve(params, workflowKey ? String(workflowKey) : null);
 
   const existingId = await store.getJSON(requestKey(user, requestId));
   if (existingId) return view(await load(user, existingId));
@@ -118,6 +123,10 @@ async function submit(params, user, body, fetchImpl = fetch) {
 
   // Fail fast (before any download or job record) when the author still has to connect Firefly.
   if (ffMode(params) === 'mcp') await fireflyAuth.accessToken(params, user, fetchImpl);
+
+  // Scene images (if this workflow entry has any) are checked before the source download.
+  const files = await store.getFiles();
+  const sceneInputs = await scenes.prepare(files, wf);
 
   // Retrieve the exact selected file version (validates folder allow-list + type).
   const src = await connector.downloadVersion(params, user, source.fileId, source.versionId, fetchImpl);
@@ -142,6 +151,9 @@ async function submit(params, user, body, fetchImpl = fetch) {
       productNodeId: wf.productNodeId,
       desktopNodeId: wf.desktopNodeId,
       mobileNodeId: wf.mobileNodeId,
+      inputs: wf.inputs.map((inp, i) => ({
+        nodeId: inp.nodeId, file: inp.file, role: inp.role, mimeType: sceneInputs[i].mimeType,
+      })),
       version: params.FFCPE_RECIPE_VERSION || '1',
       mode: ffMode(params),
     },
@@ -150,7 +162,6 @@ async function submit(params, user, body, fetchImpl = fetch) {
     createdAt: now,
   };
 
-  const files = await store.getFiles();
   const ext = kind.type === 'image/png' ? 'png' : 'jpg';
   job.source.filePath = `ccs/${id}/source.${ext}`;
   await files.write(job.source.filePath, src.bytes);
@@ -160,8 +171,11 @@ async function submit(params, user, body, fetchImpl = fetch) {
 
   const sourceUrl = await files.generatePresignURL(job.source.filePath, { expiryInSeconds: SOURCE_URL_SECONDS, permissions: 'r' });
   try {
+    const inputs = [{
+      nodeId: wf.productNodeId, url: sourceUrl, name: src.name, mimeType: kind.type,
+    }, ...sceneInputs];
     const started = await engine(params).submit(workflows.scoped(params, job.recipe), user, {
-      sourceUrl, sku, jobId: id, productName: job.productName, sourceName: src.name, mimeType: kind.type,
+      sourceUrl, sku, jobId: id, productName: job.productName, sourceName: src.name, mimeType: kind.type, inputs,
     }, fetchImpl);
     if (started.queued) {
       job.status = 'queued';
@@ -197,29 +211,39 @@ async function status(params, user, jobId, fetchImpl = fetch) {
   // A firefly-reauth error propagates: the author reconnects and the job is polled again unchanged.
   const result = await engine(params).poll(workflows.scoped(params, job.recipe), user, job.batchId, fetchImpl);
 
-  if (result.state !== 'rendered') {
-    const progress = result.progress || job.progress || null;
-    if (result.state !== job.status || result.message !== job.message
-      || JSON.stringify(progress) !== JSON.stringify(job.progress || null)) {
-      job.status = result.state;
-      job.message = result.message;
-      job.progress = progress;
-      await save(job);
-    }
+  if (result.state === 'rendered' || result.placements) {
+    await storeResult(job, result, fetchImpl);
     return view(job);
   }
-
-  await storeOutputs(job, result.placements, fetchImpl);
+  const progress = result.progress || job.progress || null;
+  if (result.state !== job.status || result.message !== job.message
+    || JSON.stringify(progress) !== JSON.stringify(job.progress || null)) {
+    job.status = result.state;
+    job.message = result.message;
+    job.progress = progress;
+    await save(job);
+  }
   return view(job);
 }
 
-/** Copies the matched (short-lived) outputs into App Builder Files and marks the job reviewable. */
-async function storeOutputs(job, placements, fetchImpl) {
-  try {
-    const files = await store.getFiles();
-    job.outputs = {};
-    // eslint-disable-next-line no-restricted-syntax
-    for (const p of ['desktop', 'mobile']) {
+/**
+ * Copies whichever (short-lived) outputs came back into App Builder Files, one channel
+ * at a time, so a channel that succeeded is kept even when the other one failed.
+ * Both stored: ready-for-review. Otherwise render-failed with per-channel reasons.
+ */
+async function storeResult(job, result, fetchImpl) {
+  const placements = result.placements || {};
+  const files = await store.getFiles();
+  job.outputs = {};
+  job.channels = {};
+  // eslint-disable-next-line no-restricted-syntax
+  for (const p of ['desktop', 'mobile']) {
+    if (!placements[p]) {
+      job.channels[p] = { ok: false, message: result.channelErrors?.[p] || null };
+      // eslint-disable-next-line no-continue
+      continue;
+    }
+    try {
       // eslint-disable-next-line no-await-in-loop
       const { bytes, kind } = await fetchOutput(fetchImpl, placements[p].url);
       const filePath = `ccs/${job.id}/${p}.${kind.type === 'image/png' ? 'png' : 'jpg'}`;
@@ -228,12 +252,21 @@ async function storeOutputs(job, placements, fetchImpl) {
       job.outputs[p] = {
         filePath, contentType: kind.type, width: kind.width, height: kind.height, outputName: placements[p].name, nodeId: placements[p].nodeId,
       };
+      job.channels[p] = { ok: true };
+    } catch (e) {
+      job.channels[p] = { ok: false, message: e.message };
     }
+  }
+  const failed = ['desktop', 'mobile'].filter((p) => !job.channels[p].ok);
+  if (!failed.length) {
     job.status = 'ready-for-review';
     job.message = null;
-  } catch (e) {
+  } else {
     job.status = 'render-failed';
-    job.message = e.message;
+    const kept = ['desktop', 'mobile'].find((p) => job.channels[p].ok);
+    job.message = result.state === 'render-failed' && result.message
+      ? result.message
+      : `${failed.map((p) => `The ${p} image could not be saved: ${job.channels[p].message}`).join(' ')}${kept ? ` The ${kept} image was kept.` : ''}`;
   }
   await save(job);
 }
@@ -243,8 +276,13 @@ async function storeOutputs(job, placements, fetchImpl) {
 const BRIDGE_HEARTBEAT = 'bridge.heartbeat';
 const CLAIM_TIMEOUT_MS = 10 * 60 * 1000;
 
-/** Returns work for the operator's local bridge and records its heartbeat. */
-async function bridgeNext(params) {
+/**
+ * Returns work for the operator's local bridge and records its heartbeat.
+ * body.capabilities: bridges that send every run input announce "multi-input";
+ * older bridges only send the product photo, so runs with scene images are refused.
+ */
+async function bridgeNext(params, body = {}) {
+  const multiInput = Array.isArray(body?.capabilities) && body.capabilities.includes('multi-input');
   await store.putJSON(BRIDGE_HEARTBEAT, { at: Date.now() }, 1);
   const queue = (await store.getJSON(BRIDGE_QUEUE)) || [];
   const keep = [];
@@ -259,6 +297,11 @@ async function bridgeNext(params) {
     if (job.batchId) {
       keep.push(jobId);
       tasks.push({ type: 'poll', jobId, batchId: job.batchId });
+    } else if (!job.bridge?.claimedAt && job.recipe?.inputs?.length && !multiInput) {
+      job.status = 'render-failed';
+      job.message = 'The local Firefly bridge is out of date and can’t send this workflow’s scene images. Update the backend folder, restart the bridge, then run again.';
+      // eslint-disable-next-line no-await-in-loop
+      await save(job);
     } else if (!job.bridge?.claimedAt) {
       job.bridge = { claimedAt: Date.now() };
       job.message = 'The local Firefly bridge is starting the run.';
@@ -268,6 +311,9 @@ async function bridgeNext(params) {
       const sourceUrl = await files.generatePresignURL(job.source.filePath, { expiryInSeconds: SOURCE_URL_SECONDS, permissions: 'r' });
       keep.push(jobId);
       const ids = nodeIdsFor(workflows.scoped(params, job.recipe));
+      const mimeType = job.source.filePath.endsWith('.png') ? 'image/png' : 'image/jpeg';
+      // eslint-disable-next-line no-await-in-loop
+      const sceneLinks = await scenes.links(files, job.recipe?.inputs || []);
       tasks.push({
         type: 'submit',
         jobId,
@@ -275,7 +321,10 @@ async function bridgeNext(params) {
         productNodeId: ids.product,
         sourceUrl,
         sourceName: job.source.name,
-        mimeType: job.source.filePath.endsWith('.png') ? 'image/png' : 'image/jpeg',
+        mimeType,
+        inputs: [{
+          nodeId: ids.product, url: sourceUrl, name: job.source.name, mimeType,
+        }, ...sceneLinks],
       });
     } else if (Date.now() - job.bridge.claimedAt > CLAIM_TIMEOUT_MS) {
       // Claimed but never confirmed: never resubmit blindly.
@@ -315,8 +364,8 @@ async function bridgeReport(params, report, fetchImpl = fetch) {
   }
   if (report.result && job.batchId) {
     const r = interpretMcpStatus(workflows.scoped(params, job.recipe), report.result);
-    if (r.state === 'rendered') {
-      await storeOutputs(job, r.placements, fetchImpl);
+    if (r.state === 'rendered' || r.placements) {
+      await storeResult(job, r, fetchImpl);
     } else if (r.state !== job.status || r.message !== job.message
       || JSON.stringify(r.progress || null) !== JSON.stringify(job.progress || null)) {
       job.status = r.state;

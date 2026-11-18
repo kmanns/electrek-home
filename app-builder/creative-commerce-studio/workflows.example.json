@@ -1,0 +1,52 @@
+[
+  {
+    "key": "spotlight",
+    "label": "Product spotlight",
+    "description": "Cutout of the product photo placed in the desktop and mobile layouts.",
+    "steps": [
+      "Remove background",
+      "Place in the desktop layout",
+      "Place in the mobile layout"
+    ],
+    "workflowId": "<published-workflow-id>",
+    "productNodeId": "<product-photo-input-node>",
+    "desktopNodeId": "<desktop-composite-node>",
+    "mobileNodeId": "<mobile-composite-node>"
+  },
+  {
+    "key": "look-workshop",
+    "label": "Campaign Look: Workshop",
+    "description": "The product photo composited into the pre-approved Workshop scene.",
+    "steps": [
+      "Remove background",
+      "Composite into the Workshop desktop scene",
+      "Composite into the Workshop mobile scene"
+    ],
+    "workflowId": "<published-workflow-id>",
+    "productNodeId": "<product-photo-input-node>",
+    "desktopNodeId": "<desktop-composite-node>",
+    "mobileNodeId": "<mobile-composite-node>",
+    "inputs": [
+      {
+        "nodeId": "<desktop-background-input-node>",
+        "file": "looks/workshop/desktop-background.jpg",
+        "role": "desktop-background"
+      },
+      {
+        "nodeId": "<desktop-mask-input-node>",
+        "file": "looks/workshop/desktop-mask.png",
+        "role": "desktop-mask"
+      },
+      {
+        "nodeId": "<mobile-background-input-node>",
+        "file": "looks/workshop/mobile-background.jpg",
+        "role": "mobile-background"
+      },
+      {
+        "nodeId": "<mobile-mask-input-node>",
+        "file": "looks/workshop/mobile-mask.png",
+        "role": "mobile-mask"
+      }
+    ]
+  }
+]

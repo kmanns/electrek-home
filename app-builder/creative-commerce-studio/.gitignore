@@ -3,3 +3,6 @@
 node_modules/
 dist/
 coverage/
+# Scene images are uploaded with `npm run workflows:upload`, not committed.
+looks/**
+!looks/README.md
