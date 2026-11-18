@@ -29,7 +29,7 @@
     "inputs": [
       {
         "nodeId": "node_1794859332_632333d2",
-        "file": "looks/premium-studio/desktop-background.jpg",
+        "file": "looks/premium-studio/desktop-background.png",
         "role": "desktop-background"
       },
       {
@@ -39,7 +39,7 @@
       },
       {
         "nodeId": "node_1794859332_c43928ef",
-        "file": "looks/premium-studio/mobile-background.jpg",
+        "file": "looks/premium-studio/mobile-background.png",
         "role": "mobile-background"
       },
       {
