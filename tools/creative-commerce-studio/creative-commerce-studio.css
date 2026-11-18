@@ -545,3 +545,46 @@ body {
 .ccs-next-actions {
   margin-block-start: var(--spectrum-spacing-100);
 }
+
+/* ---------- setup check ---------- */
+
+.ccs-setup {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spectrum-spacing-100);
+  padding: var(--spectrum-spacing-200) var(--spectrum-spacing-300);
+  margin-block-end: var(--spectrum-spacing-200);
+}
+
+.ccs-setup-head {
+  justify-content: space-between;
+}
+
+.ccs-setup-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spectrum-spacing-150);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.ccs-setup-list li {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spectrum-spacing-50);
+}
+
+.ccs-setup-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spectrum-spacing-100);
+  align-items: center;
+}
+
+.ccs-setup-who {
+  padding: 0 var(--spectrum-spacing-75);
+  border-radius: var(--spectrum-corner-radius-small-default, 4px);
+  background: var(--spectrum-gray-200);
+  font-weight: 600;
+}

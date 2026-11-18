@@ -21,6 +21,8 @@ Workspace library plugin  (tools/creative-commerce-studio/)
 
 Author flow: **Product → Source → Prepare → Review → Insert**, then **New banner** to make another. The plugin only inserts the block. Publishing is still the normal Workspace action.
 
+> **Setup check:** the top of the plugin's Product step shows what's configured and what's missing, with links to the fix.
+>
 > **Requirements and every value to fill in:** see [Before you start](https://github.com/kmanns/creative-commerce-studio#before-you-start) in the reference repo. It covers the application requirements, who needs which access, and each `.env` setting, credential and secret, with where to get it.
 
 ## Screenshots

@@ -121,11 +121,19 @@ async function uploaded() {
   return Buffer.from(bytes).toString('utf8');
 }
 
+/** Where the list comes from: 'env' (FFCPE_WORKFLOWS), 'uploaded' (workflows.json), 'single' or 'none'. */
+async function source(params) {
+  if (params.FFCPE_WORKFLOWS) return { source: 'env', text: params.FFCPE_WORKFLOWS };
+  const text = await uploaded();
+  if (text) return { source: 'uploaded', text };
+  return { source: params.FFCPE_WORKFLOW_ID ? 'single' : 'none', text: null };
+}
+
 /** All configured workflows (validated). Throws a readable error on bad configuration. */
 async function list(params) {
-  if (params.FFCPE_WORKFLOWS) return parse(params.FFCPE_WORKFLOWS);
-  const text = await uploaded();
-  if (text) return parse(text, 'workflows.json');
+  const { source: from, text } = await source(params);
+  if (from === 'env') return parse(text);
+  if (from === 'uploaded') return parse(text, 'workflows.json');
   return fromSingle(params);
 }
 
@@ -165,5 +173,5 @@ function scoped(params, recipe) {
 }
 
 module.exports = {
-  list, parse, resolve, publicList, scoped, DEFAULT_STEPS, CONFIG_PATH, ROLES, FILE_RE,
+  list, parse, resolve, publicList, scoped, source, DEFAULT_STEPS, CONFIG_PATH, ROLES, FILE_RE,
 };
