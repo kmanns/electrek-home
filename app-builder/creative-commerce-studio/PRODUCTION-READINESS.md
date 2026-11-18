@@ -17,7 +17,7 @@
 
 ### 1. Firefly Creative Production API access (the main blocker)
 
-Replace the local bridge with `FFCPE_MODE=api`. The code is already built and tested; switching is a configuration change only.
+Replace the local bridge with `FFCPE_MODE=api`. The code is built and covered by automated tests, but **it hasn't run against the live Firefly API yet**, because no credential was available. Switching is a configuration change. Plan a first supervised run to confirm the live request and response details. The request follows the published workflow's generated API request and Adobe's OpenAPI contract (`https://run-workflow.adobe.io/openapi.json`).
 
 | Requirement | Who | Where |
 |---|---|---|
@@ -28,11 +28,11 @@ Replace the local bridge with `FFCPE_MODE=api`. The code is already built and te
 | **Quota and billing:** confirm per-run cost, rate limits (`x-ratelimit-*`) and who pays | Account team | — |
 | Backend settings: `FFCPE_MODE=api`, `FFCPE_CLIENT_ID`, `FFCPE_CLIENT_SECRET`, `FFCPE_IMS_ORG_ID` (and `FFCPE_IMS_USER_ID` if required) | Operator | App Builder `.env` → `aio app deploy` |
 
-There is an alternative, but it isn't available today: the run-workflow MCP team could allowlist the backend's hosted redirect URI (`…/firefly-auth-callback`). That would let each author sign in with their own account (`FFCPE_MODE=mcp`, already built). This is a policy decision by that team.
+There is an alternative, but it isn't available today: the run-workflow MCP team could allowlist the backend's hosted redirect URI (`…/firefly-auth-callback`). That would let each author sign in with their own account (`FFCPE_MODE=mcp`, already built, but it stops at Adobe's sign-in refusal, so it has never run end to end). This is a policy decision by that team.
 
 ### 2. Product Visuals (AEM Assets) delivery
 
-Switch to `DELIVERY_MODE=aem`.
+Switch to `DELIVERY_MODE=aem`. The code is built and covered by automated tests, but hasn't run against a live AEM environment, because no AEM API credential was available. Confirm the first delivery by hand.
 
 | Requirement | Who | Where |
 |---|---|---|
