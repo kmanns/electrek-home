@@ -44,11 +44,9 @@ The plugin in Experience Workspace's side panel, from a real end-to-end run (Goo
 
 ## Video walkthrough
 
-[![Creative Commerce Studio walkthrough, 4:23: the finished spotlight banner on the page next to the plugin's Insert step](docs/images/walkthrough-poster.jpg)](https://github.com/kmanns/creative-commerce-studio/blob/main/docs/videos/creative-commerce-studio-walkthrough.mp4)
+https://github.com/user-attachments/assets/f4f1c8ff-22bf-4bd1-8d05-bd5e54fbb888
 
-**[Watch the 4:23 walkthrough](https://github.com/kmanns/creative-commerce-studio/blob/main/docs/videos/creative-commerce-studio-walkthrough.mp4)** (MP4, 11 MB, in the reference repo). GitHub doesn't play videos stored in a repository, so the link opens the file page, where **Download** saves it for any video player.
-
-Recorded on 2026-11-15: a full run from Google Drive through Firefly Creative Production to the spotlight on the page. Later additions (Campaign Looks workflows with scene images, **New banner** and the **Setup check**) aren't in it yet.
+A 7:06 walkthrough, recorded on 2026-11-19. It shows the Commerce storefront, then Creative Commerce Studio in Experience Workspace, including choosing a **Campaign Look** on the Prepare step and running it through the local Firefly bridge. If the player doesn't appear, [open the video directly](https://github.com/user-attachments/assets/f4f1c8ff-22bf-4bd1-8d05-bd5e54fbb888).
 
 ## Status
 
