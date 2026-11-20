@@ -23,6 +23,9 @@ flowchart LR
   BLK -- "images" --> DEL
   classDef demo stroke-dasharray: 5 4,stroke:#b7791f,fill:#fffaf0
   class BR demo
+  FF ~~~ SP[" "]
+  classDef spacer fill:none,stroke:none,color:transparent
+  class SP spacer
 ```
 
 Solid lines are always used. Dashed lines are the **demo-only** local bridge. For how each connection is secured, and a step-by-step diagram of a run, see [How it works](https://github.com/kmanns/creative-commerce-studio#how-it-works) in the reference repo.
