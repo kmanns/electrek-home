@@ -7,17 +7,28 @@
 
 Turns product masters in **Box** or **Google Drive** into shoppable, placement-ready storefront content inside **Experience Workspace**, using **Firefly Creative Production** for the imagery and **Adobe Commerce** for the product link.
 
+```mermaid
+flowchart LR
+  A(["Author in<br/>Experience Workspace"]) --> P["Creative Commerce Studio<br/>library plugin"]
+  P -- "SKU lookup" --> CAT["Adobe Commerce<br/>catalog"]
+  P -- "author's IMS token" --> W["App Builder<br/>web actions"]
+  W -- "on Accept" --> DEL["Product Visuals,<br/>or App Builder storage"]
+  W -- "author's sign-in,<br/>read-only" --> SRC["Box or<br/>Google Drive"]
+  W -- "production:<br/>Workflow API" --> FF["Firefly Creative<br/>Production"]
+  W --- ST[("State and Files<br/>jobs · sign-ins · images")]
+  BR["Local bridge<br/>demo only"] -. "polls for jobs" .-> W
+  BR -. "demo: operator's<br/>own sign-in" .-> FF
+  P -- "inserts the block" --> A
+  BLK["Spotlight block<br/>on the live page"] -- "product link" --> CAT
+  BLK -- "images" --> DEL
+  classDef demo stroke-dasharray: 5 4,stroke:#b7791f,fill:#fffaf0
+  class BR demo
+  FF ~~~ SP["#160;#160;#160;#160;#160;#160;#160;#160;#160;#160;#160;#160;#160;#160;#160;#160;#160;#160;#160;#160;"]
+  classDef spacer fill:none,stroke:none,color:transparent
+  class SP spacer
 ```
-Workspace library plugin  (tools/creative-commerce-studio/)
-  ├─ SKU lookup ─────────────► storefront catalog API (same endpoint/headers as the site)
-  ├─ Box / jobs ─────────────► App Builder actions (this folder)
-  │                              ├─ IMS-validated author identity
-  │                              ├─ Box OAuth + read-only folder access (encrypted tokens)
-  │                              ├─ Firefly Creative Production: per-author sign-in, run-workflow MCP
-  │                              │   (or REST Workflow API with a server-to-server credential)
-  │                              └─ delivery: Product Visuals (AEM Assets) or App Builder public storage
-  └─ insert at cursor ───────► Creative Product Spotlight block (blocks/creative-product-spotlight/)
-```
+
+Solid lines are always used. Dashed lines are the **demo-only** local bridge. For how each connection is secured, and a step-by-step diagram of a run, see [How it works](https://github.com/kmanns/creative-commerce-studio#how-it-works) in the reference repo.
 
 Author flow: **Product → Source → Prepare → Review → Insert**, then **New banner** to make another. The plugin only inserts the block. Publishing is still the normal Workspace action.
 
