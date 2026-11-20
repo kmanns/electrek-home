@@ -23,7 +23,7 @@ flowchart LR
   BLK -- "images" --> DEL
   classDef demo stroke-dasharray: 5 4,stroke:#b7791f,fill:#fffaf0
   class BR demo
-  FF ~~~ SP[" "]
+  FF ~~~ SP["#160;#160;#160;#160;#160;#160;#160;#160;#160;#160;#160;#160;#160;#160;#160;#160;#160;#160;#160;#160;"]
   classDef spacer fill:none,stroke:none,color:transparent
   class SP spacer
 ```
